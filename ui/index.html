@@ -253,20 +253,11 @@
 
   <hr>
   <h4>GitHub 自动更新</h4>
-
   <div class="form-row">
-    <label class="form-label">仓库</label>
-    <div class="form-control">
-      <input type="text" id="updateRepoInput" placeholder="owner/repo">
-      <div class="hint-text">填写 GitHub 仓库，例如 liushuai0109001-cell/huiju-video-plugin。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">更新操作</label>
+    <label class="form-label">版本更新</label>
     <div class="form-control toolbar-row">
       <button type="button" id="btnCheckUpdate">检查更新</button>
-      <button type="button" id="btnApplyUpdate">下载并更新</button>
+      <button type="button" id="btnApplyUpdate" disabled>下载并更新</button>
       <div id="updateStatus" class="hint-text" style="flex-basis:100%;margin-top:2px;"></div>
     </div>
   </div>
@@ -401,7 +392,6 @@
     var watermarkMasksInput = document.getElementById('watermarkMasksInput');
     var watermarkCrfInput = document.getElementById('watermarkCrfInput');
     var watermarkPresetSelect = document.getElementById('watermarkPresetSelect');
-    var updateRepoInput = document.getElementById('updateRepoInput');
     var btnCheckUpdate = document.getElementById('btnCheckUpdate');
     var btnApplyUpdate = document.getElementById('btnApplyUpdate');
     var updateStatus = document.getElementById('updateStatus');
@@ -659,8 +649,6 @@
     watermarkMasksInput.addEventListener('blur', function () { PluginSDK.saveParam('watermark_masks', watermarkMasksInput.value.trim()); });
     watermarkCrfInput.addEventListener('change', function () { PluginSDK.saveParam('watermark_crf', parseInt(watermarkCrfInput.value, 10) || 18); });
     watermarkPresetSelect.addEventListener('change', function () { PluginSDK.saveParam('watermark_preset', watermarkPresetSelect.value); });
-    updateRepoInput.addEventListener('change', function () { PluginSDK.saveParam('update_repo', updateRepoInput.value.trim()); });
-    updateRepoInput.addEventListener('blur', function () { PluginSDK.saveParam('update_repo', updateRepoInput.value.trim()); });
 
     btnSelectFaceTool.addEventListener('click', function () {
       PluginSDK.sendAction('select_local_file', {
@@ -680,11 +668,13 @@
     });
     btnCheckUpdate.addEventListener('click', function () {
       updateStatus.textContent = '正在检查更新...';
-      PluginSDK.sendAction('check_update', { repo: updateRepoInput.value.trim() });
+      btnApplyUpdate.disabled = true;
+      PluginSDK.sendAction('check_update', {});
     });
     btnApplyUpdate.addEventListener('click', function () {
       updateStatus.textContent = '正在下载并更新...';
-      PluginSDK.sendAction('apply_update', { repo: updateRepoInput.value.trim() });
+      btnApplyUpdate.disabled = true;
+      PluginSDK.sendAction('apply_update', {});
     });
 
     PluginSDK.onAction('get_logs_result', function (data) {
@@ -709,10 +699,12 @@
     PluginSDK.onAction('check_update_result', function (data) {
       if (!data) return;
       if (data.ok) {
+        btnApplyUpdate.disabled = !data.has_update;
         updateStatus.textContent = data.has_update
           ? ('发现新版本 ' + (data.latest_version || '') + '，可直接下载更新。')
           : (data.message || '已经是最新版本');
       } else {
+        btnApplyUpdate.disabled = true;
         updateStatus.textContent = '检查失败：' + (data.error || '未知错误');
       }
     });
@@ -756,7 +748,6 @@
         watermark_masks: watermarkMasksInput.value.trim(),
         watermark_crf: watermarkCrfInput.value,
         watermark_preset: watermarkPresetSelect.value,
-        update_repo: updateRepoInput.value.trim()
       };
     }
 
@@ -811,7 +802,6 @@
       if (params.watermark_masks != null) watermarkMasksInput.value = params.watermark_masks;
       if (params.watermark_crf != null) watermarkCrfInput.value = params.watermark_crf;
       if (params.watermark_preset) setSelectValue(watermarkPresetSelect, params.watermark_preset);
-      if (params.update_repo != null) updateRepoInput.value = params.update_repo;
       applyModelRules();
     }
 
@@ -828,6 +818,8 @@
         }
         fetchLogs();
         startAutoRefresh();
+        updateStatus.textContent = '正在自动检查更新...';
+        PluginSDK.sendAction('check_update', {});
       });
     }
   </script>
