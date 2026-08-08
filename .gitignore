@@ -1,0 +1,8 @@
+__pycache__/
+logs/
+cf-image-host/
+video-watermark-batch-tool/
+.huiju_face_cover/
+*.pyc
+*.pyo
+*.log
