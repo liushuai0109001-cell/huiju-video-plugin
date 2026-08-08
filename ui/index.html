@@ -1,0 +1,999 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>NewAPI OpenAI 瑙嗛鎻掍欢</title>
+  <link rel="stylesheet" href="../../../plugin-sdk.css">
+  <style>
+    .api-key-wrapper { position: relative; display: flex; align-items: center; }
+    .api-key-wrapper input { flex: 1; padding-right: 36px; }
+    .toggle-eye {
+      position: absolute; right: 6px;
+      background: none; border: none;
+      color: var(--text-muted); cursor: pointer;
+      font-size: 14px; padding: 2px 4px; line-height: 1;
+    }
+    .toggle-eye:hover { color: var(--text-primary); }
+    .hint-text { font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+    .refresh-btn { flex: 0 0 auto !important; padding: 7px 12px !important; }
+    .path-picker { display: flex; gap: 6px; align-items: center; }
+    .path-picker input { flex: 1; min-width: 0; }
+    .path-picker button { flex: 0 0 auto !important; padding: 7px 12px !important; }
+    .status-msg { font-size: 11px; margin-top: 6px; min-height: 18px; }
+    .status-msg.success { color: var(--success); }
+    .status-msg.error { color: var(--danger); }
+    .status-msg.loading { color: var(--warning); }
+    select:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
+    .spinner {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid var(--border-color); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 4px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h3>NewAPI OpenAI 瑙嗛鎻掍欢</h3>
+  <p>鍏煎 OpenAI Sora / Grok / Seedream.20 鏍煎紡鐨勮棰戠敓鎴愭彃浠讹紝鏀寔鑷畾涔?API 鍦板潃鍜屽瘑閽ワ紝鑷姩鑾峰彇鍙敤妯″瀷銆?/p>
+  <hr>
+
+  <!-- API Key -->
+  <div class="form-row">
+    <label class="form-label">API Key</label>
+    <div class="form-control">
+      <div class="api-key-wrapper">
+        <input type="password" id="apiKeyInput" placeholder="sk-...">
+        <button class="toggle-eye" id="toggleEye" type="button">馃憗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Base URL -->
+  <div class="form-row">
+    <label class="form-label">Base URL</label>
+    <div class="form-control">
+      <input type="text" id="baseUrlInput" placeholder="https://api.openai.com">
+    </div>
+  </div>
+
+  <!-- 妯″瀷 + 鍒锋柊 -->
+  <div class="form-row">
+    <label class="form-label">妯″瀷</label>
+    <div class="form-control" style="display:flex;gap:6px;">
+      <select id="modelSelect" style="flex:1;">
+        <option value="">璇峰厛閰嶇疆 URL 鍜?Key 鍚庤幏鍙?/option>
+      </select>
+      <button class="refresh-btn" id="btnRefreshModels" title="浠?API 鑾峰彇妯″瀷鍒楄〃">馃攧 鍒锋柊</button>
+    </div>
+  </div>
+  <div class="status-msg" id="modelStatus"></div>
+
+  <!-- 鍥惧簥閰嶇疆 -->
+  <hr>
+  <h4>鍥惧簥閰嶇疆锛堢敤浜庢妸鏈湴鍙傝€冨浘杞垚鍏綉 URL锛?/h4>
+  <p class="hint-text">涓婃父鍙帴鍙楀叕缃戝浘鐗?URL锛屽洜姝ゆ湰鍦板弬鑰冨浘浼氬厛涓婁紶鍒拌崯鑱氬浘搴婏紝鍐嶆妸鍏綉 URL 鍙戠粰 NewAPI銆?/p>
+
+  <div class="form-row">
+    <label class="form-label">Image Host URL</label>
+    <div class="form-control">
+      <input type="text" id="imageHostUrlInput" value="https://huiju.v888.art/upload" placeholder="https://huiju.v888.art/upload">
+      <div class="hint-text">鍥惧簥涓婁紶鎺ュ彛鍦板潃锛屾彃浠朵細鎶婃湰鍦板浘鐗?POST 鍒拌繖閲岋紝鍐嶅彇杩斿洖鐨?URL銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">Image Host Token</label>
+    <div class="form-control">
+      <div class="api-key-wrapper">
+        <input type="password" id="imageHostTokenInput" value="huiju-upload-2026" placeholder="鍙€夛細璁よ瘉 Token">
+        <button class="toggle-eye" id="toggleHostEye" type="button">馃憗</button>
+      </div>
+      <div class="hint-text">濡傛灉鍥惧簥鎺ュ彛闇€瑕?Bearer Token 璁よ瘉锛岃濉啓銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">涓婁紶瓒呮椂(绉?</label>
+    <div class="form-control">
+      <input type="number" id="imageHostTimeoutInput" value="60" min="10" max="300">
+    </div>
+  </div>
+
+
+  <!-- 瀹介珮姣?-->
+  <div class="form-row">
+    <label class="form-label">瀹介珮姣?/label>
+    <div class="form-control">
+      <select id="aspectRatioSelect">
+        <option value="16:9">16:9锛堟í灞?1280x720锛?/option>
+        <option value="9:16">9:16锛堢珫灞?720x1280锛?/option>
+        <option value="1:1">1:1锛堟柟褰?1024x1024锛?/option>
+        <option value="21:9">21:9锛堣秴瀹藉睆 1680x720锛?/option>
+        <option value="4:3">4:3锛堟í灞?1024x768锛?/option>
+        <option value="3:4">3:4锛堢珫灞?768x1024锛?/option>
+        <option value="3:2">3:2锛堟í灞?1280x720锛?/option>
+        <option value="2:3">2:3锛堢珫灞?720x1280锛?/option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 鏃堕暱 -->
+  <div class="form-row">
+    <label class="form-label">鏃堕暱(绉?</label>
+    <div class="form-control">
+      <select id="durationSelect">
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6" selected>6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10</option>
+        <option value="11">11</option>
+        <option value="12">12</option>
+        <option value="13">13</option>
+        <option value="14">14</option>
+        <option value="15">15</option>
+        <option value="16">16</option>
+        <option value="17">17</option>
+        <option value="18">18</option>
+        <option value="19">19</option>
+        <option value="20">20</option>
+        <option value="21">21</option>
+        <option value="22">22</option>
+        <option value="23">23</option>
+        <option value="24">24</option>
+        <option value="25">25</option>
+        <option value="26">26</option>
+        <option value="27">27</option>
+        <option value="28">28</option>
+        <option value="29">29</option>
+      </select>
+      <div class="hint-text">seedance-2.5-720pv-1 鏀寔4-29绉掞紱SD 2.0 Fast 9鍥惧弬鍥哄畾15绉掞紱Grok 1.5 鏀寔6/10/15绉掞紝鍏朵粬妯″瀷鎸変笂娓搁檺鍒惰嚜鍔ㄨ皟鏁淬€?/div>
+    </div>
+  </div>
+
+  <!-- 鍒嗚鲸鐜?-->
+  <div class="form-row">
+    <label class="form-label">鍒嗚鲸鐜?/label>
+    <div class="form-control">
+      <select id="resolutionSelect">
+        <option value="480p">480p锛堟爣娓咃紝鏇村揩锛?/option>
+        <option value="720p" selected>720p锛堥珮娓咃級</option>
+      </select>
+    </div>
+  </div>
+
+
+  <!-- 鍚堣绱犳潗 / 鐪熶汉鍙傝€?-->
+  <div class="form-row">
+    <label class="form-label">鍚堣绱犳潗</label>
+    <div class="form-control">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="complianceEnabledInput">
+        寮€鍚湡浜哄弬鑰冨悎瑙勫鐞?      </label>
+      <select id="complianceModeSelect" style="margin-top:8px;">
+        <option value="colored-pencil" selected>褰╅搮锛坈olored-pencil锛?/option>
+        <option value="watercolor">姘村僵锛坵atercolor锛?/option>
+        <option value="fishnet">娓旂綉锛坒ishnet锛?/option>
+        <option value="grid">鐪奸儴閬僵锛坓rid锛?/option>
+      </select>
+      <div class="hint-text">閫傜敤浜?sd2-c6銆乻d2-c7銆乻d2-c8 鍙婂吋瀹圭殑 CHRE Seedance 妯″瀷锛涘紑鍚悗鍙戦€?compliance_enabled 鍜?compliance_mode銆?/div>
+    </div>
+  </div>
+
+
+  <!-- 鍙傝€冨浘妯″紡 -->
+  <div class="form-row">
+    <label class="form-label">鍙傝€冨浘妯″紡</label>
+    <div class="form-control">
+      <select id="referenceModeSelect">
+        <option value="first_frame" selected>棣栧抚鍥炬ā寮忥紙鍙彂閫侀甯э紝鎺ㄨ崘锛?/option>
+        <option value="multi_image">澶氬浘妯″紡锛堝彂閫佹墍鏈夊弬鑰冨浘锛?/option>
+      </select>
+      <div class="hint-text">
+        <b>澶氬浘妯″紡</b>锛氬皢鍙傝€冨浘鐗嘙AP + 棣栧抚 + 灏惧抚鍏ㄩ儴鍙戦€佺粰 API<br>
+        <b>棣栧抚鍥炬ā寮?/b>锛氬彧鍙戦€侀甯э紙搴忓彿1锛変竴寮犲浘鐗囷紝閫傚悎浠呴渶鍗曞浘鍙傝€冪殑鍦烘櫙
+      </div>
+    </div>
+  </div>
+
+  <!-- 甯х巼锛圙rok 涓嶆敮鎸侊紝浠呬綔璁板綍锛?-->
+  <!-- 瑙掕壊鍥剧溂鐫涜嚜鍔ㄥ鐞?-->
+  <hr>
+  <h4>瑙掕壊鍥剧溂鐫涜嚜鍔ㄥ鐞?/h4>
+  <div class="form-row">
+    <label class="form-label">鍚敤</label>
+    <div class="form-control">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="faceCoverEnabledInput" checked>
+        涓婁紶鍙傝€冨浘鍓嶈嚜鍔ㄧ敤榛戞閬綇鎵€鏈夋娴嬪埌鐨勭溂鐫?      </label>
+      <div class="hint-text">浼氱敓鎴愬鐞嗗悗鐨勪复鏃跺弬鑰冨浘锛屼笉瑕嗙洊鍘熻鑹插浘锛涙敮鎸佸乏渚уぇ澶淬€佹闈€佷晶闈笁瑙嗗浘銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">宸ュ叿璺緞</label>
+    <div class="form-control">
+      <div class="path-picker">
+        <input type="text" id="faceToolPathInput" value="G:\鑷姩浜鸿劯澶勭悊宸ュ叿\face_tool.py">
+        <button type="button" id="btnSelectFaceTool">娴忚...</button>
+      </div>
+      <div class="hint-text">浣跨敤浣犳彁渚涚殑鑷姩浜鸿劯澶勭悊宸ュ叿鑴氭湰銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">Python鍛戒护</label>
+    <div class="form-control">
+      <input type="text" id="faceToolPythonInput" value="py -3.10">
+      <div class="hint-text">鐢ㄤ簬杩愯 face_tool.py锛涘凡鎸夋湰鏈?Python 3.10 閰嶇疆銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">鐪肩潧璐村浘</label>
+    <div class="form-control">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="facePasteEyesEnabledInput" checked>
+        鎶婂師鐪肩潧鐗规晥璐村埌鐢婚潰绌虹櫧澶?      </label>
+    </div>
+  </div>
+
+  <hr>
+  <h4>GitHub 鑷姩鏇存柊</h4>
+  <div class="form-row">
+    <label class="form-label">浠撳簱</label>
+    <div class="form-control">
+      <input type="text" id="updateRepoInput" placeholder="owner/repo">
+      <div class="hint-text">濉啓浣犵殑 GitHub 浠撳簱锛屼緥濡?`yourname/huiju-video-plugin`銆?/div>
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="form-label">鏇存柊鎿嶄綔</label>
+    <div class="form-control" style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button type="button" id="btnCheckUpdate">妫€鏌ユ洿鏂?/button>
+      <button type="button" id="btnApplyUpdate">涓嬭浇骞舵洿鏂?/button>
+      <div id="updateStatus" class="hint-text" style="flex-basis:100%;margin-top:2px;"></div>
+    </div>
+  </div>
+
+  <div class="form-row" style="opacity:0.5">
+    <label class="form-label">甯х巼(FPS)</label>
+    <div class="form-control">
+      <select id="fpsSelect" disabled>
+        <option value="24" selected>24</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 鐢熸垚鏁伴噺 -->
+  <div class="form-row">
+    <label class="form-label">鐢熸垚鏁伴噺</label>
+    <div class="form-control">
+      <select id="nSelect">
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 杩斿洖鏍煎紡 -->
+  <div class="form-row">
+    <label class="form-label">杩斿洖鏍煎紡</label>
+    <div class="form-control">
+      <select id="responseFormatSelect">
+        <option value="url" selected>url锛堣繑鍥炰笅杞介摼鎺ワ級</option>
+        <option value="b64_json">b64_json</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 涓嬭浇鍚庡幓姘村嵃 -->
+  <hr>
+  <h4>涓嬭浇鍚庡幓姘村嵃锛堝浐瀹氫綅缃級</h4>
+  <div class="form-row">
+    <label class="form-label">鍚敤</label>
+    <div class="form-control">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="watermarkRemoveEnabledInput">
+        涓嬭浇瀹屾垚鍚庤嚜鍔ㄥ鐞嗗浐瀹氫綅缃按鍗?      </label>
+      <div class="hint-text">浣跨敤鏈湴 FFmpeg delogo 宸ュ叿閲嶆柊缂栫爜瑙嗛锛屽彧閫傚悎浣嶇疆鍥哄畾鐨勮钀?搴曢儴姘村嵃銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">宸ュ叿璺緞</label>
+    <div class="form-control">
+      <div class="path-picker">
+        <input type="text" id="watermarkToolPathInput" value="" placeholder="鐣欑┖鑷姩鎵弿鎻掍欢鍐呯疆宸ュ叿">
+        <button type="button" id="btnSelectWatermarkTool">娴忚...</button>
+      </div>
+      <div class="hint-text">鐣欑┖浼氳嚜鍔ㄤ娇鐢?huiju瑙嗛鎻掍欢/video-watermark-batch-tool/remove_watermark.py銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">閬僵鍧愭爣</label>
+    <div class="form-control">
+      <input type="text" id="watermarkMasksInput" placeholder="渚嬪锛?040,650,220,50锛涘涓敤鑻辨枃鍒嗗彿鍒嗛殧">
+      <div class="hint-text">鏍煎紡锛歺,y,w,h銆傚涓按鍗板啓鎴愶細x,y,w,h;x,y,w,h銆傚潗鏍囨寜鐢熸垚瑙嗛瀹為檯鍍忕礌濉啓銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">璐ㄩ噺 CRF</label>
+    <div class="form-control">
+      <input type="number" id="watermarkCrfInput" value="18" min="14" max="32">
+      <div class="hint-text">瓒婂皬瓒婃竻鏅般€佹枃浠惰秺澶э紱寤鸿 18-23銆?/div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label class="form-label">缂栫爜閫熷害</label>
+    <div class="form-control">
+      <select id="watermarkPresetSelect">
+        <option value="veryfast">veryfast锛堟洿蹇級</option>
+        <option value="fast">fast</option>
+        <option value="medium" selected>medium锛堥粯璁わ級</option>
+        <option value="slow">slow锛堟洿鎱㈡洿灏忥級</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 瀹炴椂鏃ュ織闈㈡澘 -->
+  <hr>
+  <div class="form-row" style="align-items:flex-start;">
+    <label class="form-label" style="margin-top:6px;">瀹炴椂鏃ュ織</label>
+    <div class="form-control">
+      <div class="log-toolbar" style="display:flex;gap:6px;margin-bottom:6px;">
+        <button class="refresh-btn" id="btnRefreshLogs" type="button">鍒锋柊鏃ュ織</button>
+        <button class="refresh-btn" id="btnClearLogs" type="button" style="opacity:0.7;">娓呯┖</button>
+        <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="autoRefreshLogs" checked> 鑷姩鍒锋柊
+        </label>
+      </div>
+      <div id="logPanel" style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:8px;height:200px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;"></div>
+      <div class="hint-text">鏃ュ織涓細鏄剧ず鍙傚浘锛堝弬鑰冨浘鐗囷級鐨勮瘑鍒€佺紪鐮併€佸彂閫佸叏杩囩▼銆?/div>
+    </div>
+  </div>
+
+  <hr>
+  <h4>杞璁剧疆</h4>
+
+  <!-- 杞娆℃暟 -->
+  <div class="form-row">
+    <label class="form-label">鏈€澶ц疆璇㈡鏁?/label>
+    <div class="form-control">
+      <input type="number" id="maxPollInput" value="300" min="30" max="1000">
+    </div>
+  </div>
+
+  <!-- 杞闂撮殧 -->
+  <div class="form-row">
+    <label class="form-label">杞闂撮殧(绉?</label>
+    <div class="form-control">
+      <input type="number" id="pollIntervalInput" value="10" min="3" max="60">
+    </div>
+  </div>
+
+  <!-- 鎬昏秴鏃?-->
+  <div class="form-row">
+    <label class="form-label">鎬昏秴鏃?绉?</label>
+    <div class="form-control">
+      <input type="number" id="timeoutInput" value="900" min="60" max="3600">
+    </div>
+  </div>
+
+  <div class="hint-text">
+    鍏煎 OpenAI Sora / NewAPI 鍙婂叾浠?OpenAI 鏍煎紡鐨勮棰戠敓鎴?API銆?br>
+    閰嶇疆 API Key 鍜?Base URL 鍚庯紝鐐瑰嚮 <b>鍒锋柊</b> 鑷姩鑾峰彇鍙敤妯″瀷鍒楄〃銆?br>
+    淇敼 URL 鎴?Key 鍚庡皢鑷姩瑙﹀彂妯″瀷鍒楄〃鍒锋柊銆?br>
+    瑙嗛鐢熸垚涓哄紓姝ヤ换鍔★紝鎻愪氦鍚庡皢鑷姩杞鐘舵€佺洿鍒板畬鎴愩€?
+  </div>
+
+  <script src="../../../plugin-sdk.js"></script>
+  <script>
+    var logPanel = document.getElementById('logPanel');
+    var btnRefreshLogs = document.getElementById('btnRefreshLogs');
+    var btnClearLogs = document.getElementById('btnClearLogs');
+    var autoRefreshLogs = document.getElementById('autoRefreshLogs');
+    var _logTimer = null;
+    var _lastLogLine = '';
+
+    // ===== 鏃ュ織闈㈡澘 =====
+    function appendLog(text) {
+      if (!text) return;
+      var line = document.createElement('div');
+      line.textContent = text;
+      // 楂樹寒鍙傚浘鐩稿叧鏃ュ織
+      if (text.indexOf('鍙傚浘') !== -1 || text.indexOf('鍙傝€冨浘') !== -1 || text.indexOf('image') !== -1 || text.indexOf('reference_images') !== -1) {
+        line.style.color = '#00b894';
+        line.style.fontWeight = 'bold';
+      }
+      // 楂樹寒閿欒鏃ュ織
+      if (text.indexOf('閿欒') !== -1 || text.indexOf('澶辫触') !== -1 || text.indexOf('failed') !== -1) {
+        line.style.color = '#d63031';
+      }
+      logPanel.appendChild(line);
+      // 鑷姩婊氬姩鍒板簳閮?
+      logPanel.scrollTop = logPanel.scrollHeight;
+      // 闄愬埗琛屾暟
+      while (logPanel.children.length > 200) {
+        logPanel.removeChild(logPanel.firstChild);
+      }
+    }
+
+    function renderLogs(logLines) {
+      if (!logLines || !logLines.length) return;
+      // 鍙拷鍔犳柊琛?
+      for (var i = 0; i < logLines.length; i++) {
+        var line = logLines[i].replace(/\n$/, '');
+        if (line && line !== _lastLogLine) {
+          appendLog(line);
+          _lastLogLine = line;
+        }
+      }
+    }
+
+    function fetchLogs() {
+      PluginSDK.sendAction('get_logs', { lines: 100 });
+    }
+
+    function startAutoRefresh() {
+      if (_logTimer) clearInterval(_logTimer);
+      if (autoRefreshLogs.checked) {
+        _logTimer = setInterval(fetchLogs, 2000);
+      }
+    }
+
+    function stopAutoRefresh() {
+      if (_logTimer) {
+        clearInterval(_logTimer);
+        _logTimer = null;
+      }
+    }
+
+    btnRefreshLogs.addEventListener('click', fetchLogs);
+    btnClearLogs.addEventListener('click', function() {
+      logPanel.innerHTML = '';
+      _lastLogLine = '';
+    });
+    autoRefreshLogs.addEventListener('change', function() {
+      if (autoRefreshLogs.checked) {
+        startAutoRefresh();
+      } else {
+        stopAutoRefresh();
+      }
+    });
+
+    // ===== 鏃ュ織 action 鍥炶皟 =====
+    PluginSDK.onAction('get_logs_result', function(data) {
+      if (data.ok && data.logs) {
+        renderLogs(data.logs);
+      }
+    });
+
+    // ===== DOM 鍏冪礌 =====
+    var apiKeyInput = document.getElementById('apiKeyInput');
+    var baseUrlInput = document.getElementById('baseUrlInput');
+    var modelSelect = document.getElementById('modelSelect');
+    var aspectRatioSelect = document.getElementById('aspectRatioSelect');
+    var durationSelect = document.getElementById('durationSelect');
+    var fpsSelect = document.getElementById('fpsSelect');
+    var nSelect = document.getElementById('nSelect');
+    var referenceModeSelect = document.getElementById('referenceModeSelect');
+    var resolutionSelect = document.getElementById('resolutionSelect');
+    var complianceEnabledInput = document.getElementById('complianceEnabledInput');
+    var complianceModeSelect = document.getElementById('complianceModeSelect');
+    var responseFormatSelect = document.getElementById('responseFormatSelect');
+    var maxPollInput = document.getElementById('maxPollInput');
+    var pollIntervalInput = document.getElementById('pollIntervalInput');
+    var timeoutInput = document.getElementById('timeoutInput');
+    var toggleEye = document.getElementById('toggleEye');
+    var imageHostUrlInput = document.getElementById('imageHostUrlInput');
+    var imageHostTokenInput = document.getElementById('imageHostTokenInput');
+    var imageHostTimeoutInput = document.getElementById('imageHostTimeoutInput');
+    var faceCoverEnabledInput = document.getElementById('faceCoverEnabledInput');
+    var faceToolPathInput = document.getElementById('faceToolPathInput');
+    var btnSelectFaceTool = document.getElementById('btnSelectFaceTool');
+    var faceToolPythonInput = document.getElementById('faceToolPythonInput');
+    var facePasteEyesEnabledInput = document.getElementById('facePasteEyesEnabledInput');
+    var watermarkRemoveEnabledInput = document.getElementById('watermarkRemoveEnabledInput');
+    var watermarkToolPathInput = document.getElementById('watermarkToolPathInput');
+    var btnSelectWatermarkTool = document.getElementById('btnSelectWatermarkTool');
+    var watermarkMasksInput = document.getElementById('watermarkMasksInput');
+    var watermarkCrfInput = document.getElementById('watermarkCrfInput');
+    var watermarkPresetSelect = document.getElementById('watermarkPresetSelect');
+    var updateRepoInput = document.getElementById('updateRepoInput');
+    var btnCheckUpdate = document.getElementById('btnCheckUpdate');
+    var btnApplyUpdate = document.getElementById('btnApplyUpdate');
+    var updateStatus = document.getElementById('updateStatus');
+    var toggleHostEye = document.getElementById('toggleHostEye');
+    var btnRefresh = document.getElementById('btnRefreshModels');
+    var modelStatus = document.getElementById('modelStatus');
+
+    var _sdkReady = false;
+    var _modelList = [];
+    var _refreshTimer = null;
+
+    // ===== 宸ュ叿鍑芥暟 =====
+    function setSelectValue(sel, val) {
+      if (val == null) return;
+      var sv = String(val);
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === sv) {
+          sel.selectedIndex = i;
+          return;
+        }
+      }
+    }
+
+    function setStatus(msg, cls) {
+      modelStatus.textContent = msg || '';
+      modelStatus.className = 'status-msg ' + (cls || '');
+    }
+
+    function isSchatFast9RefModel(value) {
+      var compact = String(value || '').toLowerCase().replace(/[ _]/g, '-');
+      var isSd20 = compact.indexOf('sd2.0') !== -1 || compact.indexOf('sd-2.0') !== -1 ||
+        compact.indexOf('sd20') !== -1 || compact.indexOf('seedance2.0') !== -1 ||
+        compact.indexOf('seedance-2.0') !== -1;
+      var isNineRef = compact.indexOf('9鍥?) !== -1 || compact.indexOf('9ref') !== -1 ||
+        compact.indexOf('9-ref') !== -1 || compact.indexOf('9img') !== -1 ||
+        compact.indexOf('9-image') !== -1;
+      return isSd20 && compact.indexOf('fast') !== -1 && isNineRef;
+    }
+
+    function isChreComplianceModel(value) {
+      var model = String(value || '').trim().toLowerCase();
+      return model === 'sd2-c8' || model === 'sd2-c7' || model === 'sd2-c6' ||
+        model === 'seedance-2.0-720p' || model === 'seedance-2.0-fast-720p';
+    }
+
+    function applyComplianceRules() {
+      var supported = isChreComplianceModel(modelSelect.value);
+      complianceEnabledInput.disabled = !supported;
+      complianceModeSelect.disabled = !supported || !complianceEnabledInput.checked;
+      complianceEnabledInput.title = supported ? '' : '褰撳墠妯″瀷涓嶆敮鎸佸悎瑙勭礌鏉愬弬鏁?;
+    }
+
+    function applyModelRules() {
+      var fixedTo15 = isSchatFast9RefModel(modelSelect.value);
+      durationSelect.disabled = fixedTo15;
+      if (fixedTo15) {
+        setSelectValue(durationSelect, '15');
+        PluginSDK.saveParam('duration', '15');
+      }
+      applyComplianceRules();
+    }
+
+    // ===== 妯″瀷涓嬫媺妗嗗～鍏?=====
+    function populateModelDropdown(models, defaultModel, currentModel) {
+      if (!models || !models.length) return;
+      _modelList = models;
+      var curVal = currentModel || modelSelect.value;
+      modelSelect.innerHTML = '';
+      models.forEach(function (m) {
+        var opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        modelSelect.appendChild(opt);
+      });
+      if (curVal && models.indexOf(curVal) !== -1) {
+        modelSelect.value = curVal;
+      } else if (defaultModel && models.indexOf(defaultModel) !== -1) {
+        modelSelect.value = defaultModel;
+      } else if (models.length > 0) {
+        modelSelect.selectedIndex = 0;
+      }
+      PluginSDK.saveParam('model', modelSelect.value);
+      applyModelRules();
+      setStatus('鎴愬姛鑾峰彇 ' + models.length + ' 涓ā鍨?, 'success');
+    }
+
+    // ===== 妯″瀷鍒锋柊 =====
+    function refreshModels() {
+      var baseUrl = baseUrlInput.value.trim();
+      var apiKey = apiKeyInput.value.trim();
+
+      if (!baseUrl) {
+        setStatus('璇峰厛濉啓 Base URL', 'error');
+        return;
+      }
+
+      setStatus('<span class="spinner"></span>姝ｅ湪鑾峰彇妯″瀷鍒楄〃...', 'loading');
+      btnRefresh.disabled = true;
+      modelSelect.disabled = true;
+
+      PluginSDK.sendAction('fetch_models', {
+        base_url: baseUrl,
+        api_key: apiKey,
+        timeout: 15
+      });
+
+      // 杞 getParams() 鑾峰彇鍚庣瀛樺叆 config 鐨勬ā鍨嬪垪琛?
+      var pollCount = 0;
+      var pollMax = 10;
+      (function pollModelList() {
+        pollCount++;
+        PluginSDK.getParams().then(function (p) {
+          if (p && p.model_list) {
+            try {
+              var models = JSON.parse(p.model_list);
+              if (Array.isArray(models) && models.length > 0) {
+                btnRefresh.disabled = false;
+                modelSelect.disabled = false;
+                populateModelDropdown(models, p.model_list_default || '', p.model);
+                return;
+              }
+            } catch (e) {}
+          }
+          if (pollCount < pollMax) {
+            setTimeout(pollModelList, 500);
+          } else {
+            btnRefresh.disabled = false;
+            modelSelect.disabled = false;
+            setStatus('鑾峰彇瓒呮椂锛岃妫€鏌?URL 鍜?Key 鏄惁姝ｇ‘', 'error');
+          }
+        }).catch(function () {
+          if (pollCount < pollMax) {
+            setTimeout(pollModelList, 500);
+          } else {
+            btnRefresh.disabled = false;
+            modelSelect.disabled = false;
+            setStatus('鑾峰彇瓒呮椂锛岃妫€鏌?URL 鍜?Key 鏄惁姝ｇ‘', 'error');
+          }
+        });
+      })();
+    }
+
+    function scheduleAutoRefresh() {
+      if (_refreshTimer) clearTimeout(_refreshTimer);
+      _refreshTimer = setTimeout(function () {
+        if (_sdkReady) refreshModels();
+      }, 800);
+    }
+
+    // ===== 浜嬩欢缁戝畾 =====
+
+    toggleEye.addEventListener('click', function () {
+      if (apiKeyInput.type === 'password') {
+        apiKeyInput.type = 'text';
+        toggleEye.textContent = '馃檲';
+      } else {
+        apiKeyInput.type = 'password';
+        toggleEye.textContent = '馃憗';
+      }
+    });
+
+    toggleHostEye.addEventListener('click', function () {
+      if (imageHostTokenInput.type === 'password') {
+        imageHostTokenInput.type = 'text';
+        toggleHostEye.textContent = '馃檲';
+      } else {
+        imageHostTokenInput.type = 'password';
+        toggleHostEye.textContent = '馃憗';
+      }
+    });
+
+    baseUrlInput.addEventListener('input', function () {
+      PluginSDK.saveParam('base_url', baseUrlInput.value);
+      scheduleAutoRefresh();
+    });
+    baseUrlInput.addEventListener('change', function () {
+      PluginSDK.saveParam('base_url', baseUrlInput.value);
+      refreshModels();
+    });
+
+    apiKeyInput.addEventListener('change', function () {
+      PluginSDK.saveParam('api_key', apiKeyInput.value);
+      refreshModels();
+    });
+    apiKeyInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('api_key', apiKeyInput.value);
+    });
+
+    btnRefresh.addEventListener('click', refreshModels);
+
+    modelSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('model', modelSelect.value);
+      applyModelRules();
+    });
+    aspectRatioSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('aspect_ratio', aspectRatioSelect.value);
+    });
+    durationSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('duration', durationSelect.value);
+    });
+    referenceModeSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('reference_mode', referenceModeSelect.value);
+    });
+    complianceEnabledInput.addEventListener('change', function () {
+      PluginSDK.saveParam('compliance_enabled', complianceEnabledInput.checked);
+      applyComplianceRules();
+    });
+    complianceModeSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('compliance_mode', complianceModeSelect.value);
+    });
+    fpsSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('fps', fpsSelect.value);
+    });
+    nSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('n', nSelect.value);
+    });
+    responseFormatSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('response_format', responseFormatSelect.value);
+    });
+    maxPollInput.addEventListener('change', function () {
+      PluginSDK.saveParam('max_poll_attempts', parseInt(maxPollInput.value) || 300);
+    });
+    pollIntervalInput.addEventListener('change', function () {
+      PluginSDK.saveParam('poll_interval', parseInt(pollIntervalInput.value) || 10);
+    });
+    timeoutInput.addEventListener('change', function () {
+      PluginSDK.saveParam('timeout', parseInt(timeoutInput.value) || 900);
+    });
+    imageHostUrlInput.addEventListener('change', function () {
+      PluginSDK.saveParam('image_host_url', imageHostUrlInput.value.trim());
+    });
+    imageHostUrlInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('image_host_url', imageHostUrlInput.value.trim());
+    });
+    imageHostTokenInput.addEventListener('change', function () {
+      PluginSDK.saveParam('image_host_token', imageHostTokenInput.value.trim());
+    });
+    imageHostTokenInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('image_host_token', imageHostTokenInput.value.trim());
+    });
+    imageHostTimeoutInput.addEventListener('change', function () {
+      PluginSDK.saveParam('image_host_timeout', parseInt(imageHostTimeoutInput.value) || 60);
+    });
+    faceCoverEnabledInput.addEventListener('change', function () {
+      PluginSDK.saveParam('face_cover_enabled', faceCoverEnabledInput.checked);
+    });
+    faceToolPathInput.addEventListener('change', function () {
+      PluginSDK.saveParam('face_tool_path', faceToolPathInput.value.trim());
+    });
+    faceToolPathInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('face_tool_path', faceToolPathInput.value.trim());
+    });
+    btnSelectFaceTool.addEventListener('click', function () {
+      PluginSDK.sendAction('select_local_file', {
+        target: 'face_tool_path',
+        title: '閫夋嫨鑷姩浜鸿劯澶勭悊宸ュ叿鑴氭湰',
+        initial_path: faceToolPathInput.value.trim(),
+        filetypes: [
+          ['Python 鑴氭湰', '*.py'],
+          ['鍙墽琛屾枃浠?, '*.exe'],
+          ['鎵€鏈夋枃浠?, '*.*']
+        ]
+      });
+    });
+    faceToolPythonInput.addEventListener('change', function () {
+      PluginSDK.saveParam('face_tool_python', faceToolPythonInput.value.trim());
+    });
+    faceToolPythonInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('face_tool_python', faceToolPythonInput.value.trim());
+    });
+    facePasteEyesEnabledInput.addEventListener('change', function () {
+      PluginSDK.saveParam('face_paste_eyes_enabled', facePasteEyesEnabledInput.checked);
+    });
+    watermarkRemoveEnabledInput.addEventListener('change', function () {
+      PluginSDK.saveParam('watermark_remove_enabled', watermarkRemoveEnabledInput.checked);
+    });
+    watermarkToolPathInput.addEventListener('change', function () {
+      PluginSDK.saveParam('watermark_tool_path', watermarkToolPathInput.value.trim());
+    });
+    watermarkToolPathInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('watermark_tool_path', watermarkToolPathInput.value.trim());
+    });
+    btnSelectWatermarkTool.addEventListener('click', function () {
+      PluginSDK.sendAction('select_local_file', {
+        target: 'watermark_tool_path',
+        title: '閫夋嫨姘村嵃澶勭悊宸ュ叿鑴氭湰',
+        initial_path: watermarkToolPathInput.value.trim(),
+        filetypes: [
+          ['Python 鑴氭湰', '*.py'],
+          ['鍙墽琛屾枃浠?, '*.exe'],
+          ['鎵€鏈夋枃浠?, '*.*']
+        ]
+      });
+    });
+    watermarkMasksInput.addEventListener('change', function () {
+      PluginSDK.saveParam('watermark_masks', watermarkMasksInput.value.trim());
+    });
+    watermarkMasksInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('watermark_masks', watermarkMasksInput.value.trim());
+    });
+    watermarkCrfInput.addEventListener('change', function () {
+      PluginSDK.saveParam('watermark_crf', parseInt(watermarkCrfInput.value) || 18);
+    });
+    watermarkPresetSelect.addEventListener('change', function () {
+      PluginSDK.saveParam('watermark_preset', watermarkPresetSelect.value);
+    });
+
+    // ===== 蹇€熻矾寰勶細鍚庣鐩存帴鍥炶皟 =====
+    updateRepoInput.addEventListener('change', function () {
+      PluginSDK.saveParam('update_repo', updateRepoInput.value.trim());
+    });
+    updateRepoInput.addEventListener('blur', function () {
+      PluginSDK.saveParam('update_repo', updateRepoInput.value.trim());
+    });
+    btnCheckUpdate.addEventListener('click', function () {
+      updateStatus.textContent = '姝ｅ湪妫€鏌ユ洿鏂?..';
+      PluginSDK.sendAction('check_update', { repo: updateRepoInput.value.trim() });
+    });
+    btnApplyUpdate.addEventListener('click', function () {
+      updateStatus.textContent = '姝ｅ湪涓嬭浇骞舵洿鏂?..';
+      PluginSDK.sendAction('apply_update', { repo: updateRepoInput.value.trim() });
+    });
+
+    PluginSDK.onAction('fetch_models_result', function (data) {
+      btnRefresh.disabled = false;
+      modelSelect.disabled = false;
+      if (data.ok) {
+        populateModelDropdown(data.models || [], data.default_model || '', modelSelect.value);
+      } else {
+        setStatus('鑾峰彇澶辫触: ' + (data.error || '鏈煡閿欒'), 'error');
+      }
+    });
+
+    // ===== 鍙傛暟璇诲啓 =====
+    PluginSDK.onAction('check_update_result', function (data) {
+      if (!data) return;
+      if (data.ok) {
+        updateStatus.textContent = data.has_update
+          ? ('发现新版本 ' + (data.latest_version || '') + '，可直接下载更新。')
+          : (data.message || '已经是最新版本');
+      } else {
+        updateStatus.textContent = '检查失败：' + (data.error || '未知错误');
+      }
+    });
+
+    PluginSDK.onAction('apply_update_result', function (data) {
+      if (!data) return;
+      if (data.ok && data.updated) {
+        updateStatus.textContent = '更新完成：' + (data.latest_version || '') + '，已备份到 ' + (data.backup_dir || '');
+      } else if (data.ok) {
+        updateStatus.textContent = data.message || '已经是最新版本';
+      } else {
+        updateStatus.textContent = '更新失败：' + (data.error || '未知错误');
+      }
+    });
+
+    // ===== 鍙傛暟璇诲啓 =====
+    PluginSDK.onAction('select_local_file_result', function (data) {
+      if (!data || !data.ok || !data.path) return;
+      if (data.target === 'face_tool_path') {
+        faceToolPathInput.value = data.path;
+        PluginSDK.saveParam('face_tool_path', data.path);
+      } else if (data.target === 'watermark_tool_path') {
+        watermarkToolPathInput.value = data.path;
+        PluginSDK.saveParam('watermark_tool_path', data.path);
+      }
+    });
+
+    function getParams() {
+      return {
+        api_key: apiKeyInput.value.trim(),
+        base_url: baseUrlInput.value.trim(),
+        model: modelSelect.value,
+        aspect_ratio: aspectRatioSelect.value,
+        duration: durationSelect.value,
+        fps: fpsSelect.value,
+        n: nSelect.value,
+        response_format: responseFormatSelect.value,
+        max_poll_attempts: maxPollInput.value,
+        poll_interval: pollIntervalInput.value,
+        timeout: timeoutInput.value,
+        reference_mode: referenceModeSelect.value,
+        resolution: resolutionSelect.value,
+        compliance_enabled: complianceEnabledInput.checked,
+        compliance_mode: complianceModeSelect.value,
+        image_host_url: imageHostUrlInput.value.trim(),
+        image_host_token: imageHostTokenInput.value.trim(),
+        image_host_timeout: imageHostTimeoutInput.value,
+        face_cover_enabled: faceCoverEnabledInput.checked,
+        face_tool_path: faceToolPathInput.value.trim(),
+        face_tool_python: faceToolPythonInput.value.trim(),
+        face_paste_eyes_enabled: facePasteEyesEnabledInput.checked,
+        watermark_remove_enabled: watermarkRemoveEnabledInput.checked,
+        watermark_tool_path: watermarkToolPathInput.value.trim(),
+        watermark_masks: watermarkMasksInput.value.trim(),
+        watermark_crf: watermarkCrfInput.value,
+        watermark_preset: watermarkPresetSelect.value,
+        update_repo: updateRepoInput.value.trim(),
+      };
+    }
+
+
+
+    function setParams(params) {
+      if (params.api_key) apiKeyInput.value = params.api_key;
+      if (params.base_url) baseUrlInput.value = params.base_url;
+
+      // 鎭㈠缂撳瓨鐨勬ā鍨嬪垪琛?
+      if (params.model_list) {
+        try {
+          var cachedModels = JSON.parse(params.model_list);
+          if (Array.isArray(cachedModels) && cachedModels.length > 0) {
+            populateModelDropdown(cachedModels, params.model_list_default || '', params.model);
+          }
+        } catch (e) {}
+      }
+
+      if (params.model && modelSelect.options.length <= 1 && (!_modelList.length || _modelList.indexOf(params.model) === -1)) {
+        var found = false;
+        for (var i = 0; i < modelSelect.options.length; i++) {
+          if (modelSelect.options[i].value === params.model) { found = true; break; }
+        }
+        if (!found && params.model) {
+          var opt = document.createElement('option');
+          opt.value = params.model;
+          opt.textContent = params.model;
+          modelSelect.appendChild(opt);
+          modelSelect.value = params.model;
+        }
+      } else if (params.model) {
+        setSelectValue(modelSelect, params.model);
+      }
+
+      if (params.aspect_ratio) setSelectValue(aspectRatioSelect, params.aspect_ratio);
+      if (params.duration != null) setSelectValue(durationSelect, params.duration);
+      if (params.fps != null) setSelectValue(fpsSelect, params.fps);
+      if (params.n != null) setSelectValue(nSelect, params.n);
+      if (params.response_format) setSelectValue(responseFormatSelect, params.response_format);
+      if (params.max_poll_attempts != null) maxPollInput.value = params.max_poll_attempts;
+      if (params.poll_interval != null) pollIntervalInput.value = params.poll_interval;
+      if (params.timeout != null) timeoutInput.value = params.timeout;
+      if (params.reference_mode) setSelectValue(referenceModeSelect, params.reference_mode);
+      if (params.resolution) setSelectValue(resolutionSelect, params.resolution);
+      if (params.compliance_enabled != null) {
+        complianceEnabledInput.checked = params.compliance_enabled === true || params.compliance_enabled === 'true' || params.compliance_enabled === '1';
+      }
+      if (params.compliance_mode) setSelectValue(complianceModeSelect, params.compliance_mode);
+      if (params.image_host_url != null) imageHostUrlInput.value = params.image_host_url;
+      if (params.image_host_token != null) imageHostTokenInput.value = params.image_host_token;
+      if (params.image_host_timeout != null) imageHostTimeoutInput.value = params.image_host_timeout;
+      if (params.face_cover_enabled != null) {
+        faceCoverEnabledInput.checked = params.face_cover_enabled === true || params.face_cover_enabled === 'true' || params.face_cover_enabled === '1';
+      }
+      if (params.face_tool_path != null) faceToolPathInput.value = params.face_tool_path;
+      if (params.face_tool_python != null) faceToolPythonInput.value = params.face_tool_python;
+      if (params.face_paste_eyes_enabled != null) {
+        facePasteEyesEnabledInput.checked = params.face_paste_eyes_enabled === true || params.face_paste_eyes_enabled === 'true' || params.face_paste_eyes_enabled === '1';
+      }
+      if (params.watermark_remove_enabled != null) {
+        watermarkRemoveEnabledInput.checked = params.watermark_remove_enabled === true || params.watermark_remove_enabled === 'true' || params.watermark_remove_enabled === '1';
+      }
+      if (params.watermark_tool_path != null) watermarkToolPathInput.value = params.watermark_tool_path;
+      if (params.watermark_masks != null) watermarkMasksInput.value = params.watermark_masks;
+      if (params.watermark_crf != null) watermarkCrfInput.value = params.watermark_crf;
+      if (params.watermark_preset) setSelectValue(watermarkPresetSelect, params.watermark_preset);
+      if (params.update_repo != null) updateRepoInput.value = params.update_repo;
+      applyModelRules();
+    }
+
+
+
+    window.get_plugin_params = getParams;
+    window.set_plugin_params = setParams;
+
+    // ===== SDK 鍒濆鍖?=====
+    if (typeof PluginSDK !== 'undefined' && PluginSDK.onReady) {
+      PluginSDK.onReady(function (params) {
+        _sdkReady = true;
+        setParams(params);
+        if (!params.model_list && params.base_url && params.api_key) {
+          scheduleAutoRefresh();
+        }
+        // 鍚姩瀹炴椂鏃ュ織鑷姩鍒锋柊
+        fetchLogs();
+        startAutoRefresh();
+      });
+    }
+  </script>
+</body>
+</html>

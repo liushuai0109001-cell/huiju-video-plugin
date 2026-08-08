@@ -1,0 +1,4 @@
+{
+  "name": "huiju",
+  "description": "兼容 OpenAI Sora 格式的视频生成插件，支持自定义 API 地址和密钥，自动获取可用模型列表"
+}
