@@ -220,7 +220,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.3"
+_PLUGIN_VERSION = "1.2.4"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
