@@ -197,7 +197,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.1"
+_PLUGIN_VERSION = "1.2.2"
 
 # ===================== 榛樿鍙傛暟 =====================
 

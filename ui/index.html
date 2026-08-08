@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="GBK">
-  <title>NewAPI OpenAI ÊÓÆµ²å¼ş</title>
+  <meta charset="UTF-8">
+  <title>NewAPI OpenAI è§†é¢‘æ’ä»¶</title>
   <link rel="stylesheet" href="../../../plugin-sdk.css">
   <style>
     .api-key-wrapper { position: relative; display: flex; align-items: center; }
@@ -42,8 +42,8 @@
   </style>
 </head>
 <body>
-  <h3>NewAPI OpenAI ÊÓÆµ²å¼ş</h3>
-  <p class="hint-text">¼æÈİ OpenAI Sora / Grok / Seedream µÈÊÓÆµÉú³É½Ó¿Ú£¬Ö§³Ö×Ô¶¨Òå API µØÖ·¡¢ÃÜÔ¿¡¢²Î¿¼Í¼ÉÏ´«¡¢ÈËÎïÑÛ¾¦ÕÚµ²¡¢È¥Ë®Ó¡ºÍ GitHub ×Ô¶¯¸üĞÂ¡£</p>
+  <h3>NewAPI OpenAI è§†é¢‘æ’ä»¶</h3>
+  <p class="hint-text">å…¼å®¹ OpenAI Sora / Grok / Seedream ç­‰è§†é¢‘ç”Ÿæˆæ¥å£ï¼Œæ”¯æŒè‡ªå®šä¹‰ API åœ°å€ã€å¯†é’¥ã€å‚è€ƒå›¾ä¸Šä¼ ã€äººç‰©çœ¼ç›é®æŒ¡ã€å»æ°´å°å’Œ GitHub è‡ªåŠ¨æ›´æ–°ã€‚</p>
   <hr>
 
   <div class="form-row">
@@ -51,7 +51,7 @@
     <div class="form-control">
       <div class="api-key-wrapper">
         <input type="password" id="apiKeyInput" placeholder="sk-...">
-        <button class="toggle-eye" id="toggleEye" type="button">ÏÔÊ¾</button>
+        <button class="toggle-eye" id="toggleEye" type="button">æ˜¾ç¤º</button>
       </div>
     </div>
   </div>
@@ -64,25 +64,25 @@
   </div>
 
   <div class="form-row">
-    <label class="form-label">Ä£ĞÍ</label>
+    <label class="form-label">æ¨¡å‹</label>
     <div class="form-control" style="display:flex;gap:6px;">
       <select id="modelSelect" style="flex:1;">
-        <option value="">ÇëÏÈÅäÖÃ URL ºÍ Key ºó»ñÈ¡</option>
+        <option value="">è¯·å…ˆé…ç½® URL å’Œ Key åè·å–</option>
       </select>
-      <button class="refresh-btn" id="btnRefreshModels" type="button" title="´Ó API »ñÈ¡Ä£ĞÍÁĞ±í">Ë¢ĞÂ</button>
+      <button class="refresh-btn" id="btnRefreshModels" type="button" title="ä» API è·å–æ¨¡å‹åˆ—è¡¨">åˆ·æ–°</button>
     </div>
   </div>
   <div class="status-msg" id="modelStatus"></div>
 
   <hr>
-  <h4>Í¼´²ÅäÖÃ</h4>
-  <p class="hint-text">ÉÏÓÎÖ»½ÓÊÜ¹«ÍøÍ¼Æ¬ URL Ê±£¬±¾µØ²Î¿¼Í¼»áÏÈÉÏ´«µ½Í¼´²£¬ÔÙ°Ñ¹«Íø URL ·¢ËÍ¸ø NewAPI¡£</p>
+  <h4>å›¾åºŠé…ç½®</h4>
+  <p class="hint-text">ä¸Šæ¸¸åªæ¥å—å…¬ç½‘å›¾ç‰‡ URL æ—¶ï¼Œæœ¬åœ°å‚è€ƒå›¾ä¼šå…ˆä¸Šä¼ åˆ°å›¾åºŠï¼Œå†æŠŠå…¬ç½‘ URL å‘é€ç»™ NewAPIã€‚</p>
 
   <div class="form-row">
     <label class="form-label">Image Host URL</label>
     <div class="form-control">
       <input type="text" id="imageHostUrlInput" value="https://huiju.v888.art/upload" placeholder="https://huiju.v888.art/upload">
-      <div class="hint-text">Í¼´²ÉÏ´«½Ó¿ÚµØÖ·£¬²å¼ş»á°Ñ±¾µØÍ¼Æ¬ POST µ½ÕâÀï£¬ÔÙ¶ÁÈ¡·µ»ØµÄ URL¡£</div>
+      <div class="hint-text">å›¾åºŠä¸Šä¼ æ¥å£åœ°å€ï¼Œæ’ä»¶ä¼šæŠŠæœ¬åœ°å›¾ç‰‡ POST åˆ°è¿™é‡Œï¼Œå†è¯»å–è¿”å›çš„ URLã€‚</div>
     </div>
   </div>
 
@@ -90,41 +90,41 @@
     <label class="form-label">Image Host Token</label>
     <div class="form-control">
       <div class="api-key-wrapper">
-        <input type="password" id="imageHostTokenInput" value="huiju-upload-2026" placeholder="¿ÉÑ¡£ºÈÏÖ¤ Token">
-        <button class="toggle-eye" id="toggleHostEye" type="button">ÏÔÊ¾</button>
+        <input type="password" id="imageHostTokenInput" value="huiju-upload-2026" placeholder="å¯é€‰ï¼šè®¤è¯ Token">
+        <button class="toggle-eye" id="toggleHostEye" type="button">æ˜¾ç¤º</button>
       </div>
-      <div class="hint-text">Èç¹ûÍ¼´²½Ó¿ÚĞèÒª Bearer Token ÈÏÖ¤£¬ÇëÌîĞ´¡£</div>
+      <div class="hint-text">å¦‚æœå›¾åºŠæ¥å£éœ€è¦ Bearer Token è®¤è¯ï¼Œè¯·å¡«å†™ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">ÉÏ´«³¬Ê±(Ãë)</label>
+    <label class="form-label">ä¸Šä¼ è¶…æ—¶(ç§’)</label>
     <div class="form-control">
       <input type="number" id="imageHostTimeoutInput" value="60" min="10" max="300">
     </div>
   </div>
 
   <hr>
-  <h4>Éú³É²ÎÊı</h4>
+  <h4>ç”Ÿæˆå‚æ•°</h4>
 
   <div class="form-row">
-    <label class="form-label">¿í¸ß±È</label>
+    <label class="form-label">å®½é«˜æ¯”</label>
     <div class="form-control">
       <select id="aspectRatioSelect">
-        <option value="16:9">16:9 ºáÆÁ 1280x720</option>
-        <option value="9:16">9:16 ÊúÆÁ 720x1280</option>
-        <option value="1:1">1:1 ·½ĞÎ 1024x1024</option>
-        <option value="21:9">21:9 ³¬¿íÆÁ 1680x720</option>
-        <option value="4:3">4:3 ºáÆÁ 1024x768</option>
-        <option value="3:4">3:4 ÊúÆÁ 768x1024</option>
-        <option value="3:2">3:2 ºáÆÁ</option>
-        <option value="2:3">2:3 ÊúÆÁ</option>
+        <option value="16:9">16:9 æ¨ªå± 1280x720</option>
+        <option value="9:16">9:16 ç«–å± 720x1280</option>
+        <option value="1:1">1:1 æ–¹å½¢ 1024x1024</option>
+        <option value="21:9">21:9 è¶…å®½å± 1680x720</option>
+        <option value="4:3">4:3 æ¨ªå± 1024x768</option>
+        <option value="3:4">3:4 ç«–å± 768x1024</option>
+        <option value="3:2">3:2 æ¨ªå±</option>
+        <option value="2:3">2:3 ç«–å±</option>
       </select>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">Ê±³¤(Ãë)</label>
+    <label class="form-label">æ—¶é•¿(ç§’)</label>
     <div class="form-control">
       <select id="durationSelect">
         <option value="4">4</option><option value="5">5</option><option value="6" selected>6</option>
@@ -137,50 +137,50 @@
         <option value="25">25</option><option value="26">26</option><option value="27">27</option>
         <option value="28">28</option><option value="29">29</option>
       </select>
-      <div class="hint-text">²¿·ÖÄ£ĞÍ»áÏŞÖÆÊ±³¤£¬²å¼ş»á°´ÉÏÓÎ¹æÔò×Ô¶¯µ÷Õû¡£</div>
+      <div class="hint-text">éƒ¨åˆ†æ¨¡å‹ä¼šé™åˆ¶æ—¶é•¿ï¼Œæ’ä»¶ä¼šæŒ‰ä¸Šæ¸¸è§„åˆ™è‡ªåŠ¨è°ƒæ•´ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">·Ö±æÂÊ</label>
+    <label class="form-label">åˆ†è¾¨ç‡</label>
     <div class="form-control">
       <select id="resolutionSelect">
-        <option value="480p">480p ±êÇå£¬¸ü¿ì</option>
-        <option value="720p" selected>720p ¸ßÇå</option>
+        <option value="480p">480p æ ‡æ¸…ï¼Œæ›´å¿«</option>
+        <option value="720p" selected>720p é«˜æ¸…</option>
       </select>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">ºÏ¹æËØ²Ä</label>
+    <label class="form-label">åˆè§„ç´ æ</label>
     <div class="form-control">
       <label class="inline-check">
         <input type="checkbox" id="complianceEnabledInput">
-        <span>¿ªÆôÕæÈË²Î¿¼Í¼ºÏ¹æ´¦Àí</span>
+        <span>å¼€å¯çœŸäººå‚è€ƒå›¾åˆè§„å¤„ç†</span>
       </label>
       <select id="complianceModeSelect" style="margin-top:8px;">
-        <option value="colored-pencil" selected>²ÊÇ¦ colored-pencil</option>
-        <option value="watercolor">Ë®²Ê watercolor</option>
-        <option value="fishnet">ÓãÍø fishnet</option>
-        <option value="grid">ÑÛ²¿ÕÚÕÖ grid</option>
+        <option value="colored-pencil" selected>å½©é“… colored-pencil</option>
+        <option value="watercolor">æ°´å½© watercolor</option>
+        <option value="fishnet">é±¼ç½‘ fishnet</option>
+        <option value="grid">çœ¼éƒ¨é®ç½© grid</option>
       </select>
-      <div class="hint-text">ÊÊÓÃÓÚ sd2-c6¡¢sd2-c7¡¢sd2-c8 ¼°¼æÈİµÄ CHRE Seedance Ä£ĞÍ¡£</div>
+      <div class="hint-text">é€‚ç”¨äº sd2-c6ã€sd2-c7ã€sd2-c8 åŠå…¼å®¹çš„ CHRE Seedance æ¨¡å‹ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">²Î¿¼Í¼Ä£Ê½</label>
+    <label class="form-label">å‚è€ƒå›¾æ¨¡å¼</label>
     <div class="form-control">
       <select id="referenceModeSelect">
-        <option value="first_frame" selected>Ê×Ö¡Í¼Ä£Ê½£ºÖ»·¢ËÍÊ×Ö¡£¬ÍÆ¼ö</option>
-        <option value="multi_image">¶àÍ¼Ä£Ê½£º·¢ËÍËùÓĞ²Î¿¼Í¼</option>
+        <option value="first_frame" selected>é¦–å¸§å›¾æ¨¡å¼ï¼šåªå‘é€é¦–å¸§ï¼Œæ¨è</option>
+        <option value="multi_image">å¤šå›¾æ¨¡å¼ï¼šå‘é€æ‰€æœ‰å‚è€ƒå›¾</option>
       </select>
-      <div class="hint-text">¶àÍ¼Ä£Ê½»á·¢ËÍ²Î¿¼Í¼Æ¬ MAP¡¢Ê×Ö¡ºÍÎ²Ö¡£»Ê×Ö¡Í¼Ä£Ê½ÊÊºÏÖ»ĞèÒªµ¥ÕÅ²Î¿¼Í¼µÄ³¡¾°¡£</div>
+      <div class="hint-text">å¤šå›¾æ¨¡å¼ä¼šå‘é€å‚è€ƒå›¾ç‰‡ MAPã€é¦–å¸§å’Œå°¾å¸§ï¼›é¦–å¸§å›¾æ¨¡å¼é€‚åˆåªéœ€è¦å•å¼ å‚è€ƒå›¾çš„åœºæ™¯ã€‚</div>
     </div>
   </div>
 
   <div class="form-row" style="opacity:0.55">
-    <label class="form-label">Ö¡ÂÊ(FPS)</label>
+    <label class="form-label">å¸§ç‡(FPS)</label>
     <div class="form-control">
       <select id="fpsSelect" disabled>
         <option value="24" selected>24</option>
@@ -189,7 +189,7 @@
   </div>
 
   <div class="form-row">
-    <label class="form-label">Éú³ÉÊıÁ¿</label>
+    <label class="form-label">ç”Ÿæˆæ•°é‡</label>
     <div class="form-control">
       <select id="nSelect">
         <option value="1" selected>1</option>
@@ -199,168 +199,168 @@
   </div>
 
   <div class="form-row">
-    <label class="form-label">·µ»Ø¸ñÊ½</label>
+    <label class="form-label">è¿”å›æ ¼å¼</label>
     <div class="form-control">
       <select id="responseFormatSelect">
-        <option value="url" selected>url ÏÂÔØÁ´½Ó</option>
+        <option value="url" selected>url ä¸‹è½½é“¾æ¥</option>
         <option value="b64_json">b64_json</option>
       </select>
     </div>
   </div>
 
   <hr>
-  <h4>½ÇÉ«Í¼ÑÛ¾¦×Ô¶¯´¦Àí</h4>
+  <h4>è§’è‰²å›¾çœ¼ç›è‡ªåŠ¨å¤„ç†</h4>
 
   <div class="form-row">
-    <label class="form-label">ÆôÓÃ</label>
+    <label class="form-label">å¯ç”¨</label>
     <div class="form-control">
       <label class="inline-check">
         <input type="checkbox" id="faceCoverEnabledInput" checked>
-        <span>ÉÏ´«²Î¿¼Í¼Ç°×Ô¶¯ÓÃºÚ¿òÕÚ×¡¼ì²âµ½µÄÑÛ¾¦</span>
+        <span>ä¸Šä¼ å‚è€ƒå›¾å‰è‡ªåŠ¨ç”¨é»‘æ¡†é®ä½æ£€æµ‹åˆ°çš„çœ¼ç›</span>
       </label>
-      <div class="hint-text">»áÉú³É´¦ÀíºóµÄÁÙÊ±²Î¿¼Í¼£¬²»¸²¸ÇÔ­½ÇÉ«Í¼£»Ö§³ÖÕıÃæ¡¢²àÃæ¡¢ÈıÊÓÍ¼¡£</div>
+      <div class="hint-text">ä¼šç”Ÿæˆå¤„ç†åçš„ä¸´æ—¶å‚è€ƒå›¾ï¼Œä¸è¦†ç›–åŸè§’è‰²å›¾ï¼›æ”¯æŒæ­£é¢ã€ä¾§é¢ã€ä¸‰è§†å›¾ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">¹¤¾ßÂ·¾¶</label>
+    <label class="form-label">å·¥å…·è·¯å¾„</label>
     <div class="form-control">
       <div class="path-picker">
-        <input type="text" id="faceToolPathInput" value="" placeholder="Áô¿ÕÔòÊ¹ÓÃ²å¼şÄÚÖÃ face_tool.py">
-        <button type="button" id="btnSelectFaceTool">ä¯ÀÀ...</button>
+        <input type="text" id="faceToolPathInput" value="" placeholder="ç•™ç©ºåˆ™ä½¿ç”¨æ’ä»¶å†…ç½® face_tool.py">
+        <button type="button" id="btnSelectFaceTool">æµè§ˆ...</button>
       </div>
-      <div class="hint-text">¿ÉÒÔÑ¡ÔñÄãÌá¹©µÄ×Ô¶¯ÈËÁ³´¦Àí¹¤¾ß½Å±¾£»Áô¿Õ»áÊ¹ÓÃ²å¼şÄÚÖÃ°æ±¾¡£</div>
+      <div class="hint-text">å¯ä»¥é€‰æ‹©ä½ æä¾›çš„è‡ªåŠ¨äººè„¸å¤„ç†å·¥å…·è„šæœ¬ï¼›ç•™ç©ºä¼šä½¿ç”¨æ’ä»¶å†…ç½®ç‰ˆæœ¬ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">Python ÃüÁî</label>
+    <label class="form-label">Python å‘½ä»¤</label>
     <div class="form-control">
       <input type="text" id="faceToolPythonInput" value="py -3.10">
-      <div class="hint-text">ÓÃÓÚÔËĞĞ face_tool.py¡£</div>
+      <div class="hint-text">ç”¨äºè¿è¡Œ face_tool.pyã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">ÑÛ¾¦ÌùÍ¼</label>
+    <label class="form-label">çœ¼ç›è´´å›¾</label>
     <div class="form-control">
       <label class="inline-check">
         <input type="checkbox" id="facePasteEyesEnabledInput" checked>
-        <span>°ÑÔ­ÑÛ¾¦ÌØĞ§Ìùµ½»­Ãæ¿Õ°×´¦</span>
+        <span>æŠŠåŸçœ¼ç›ç‰¹æ•ˆè´´åˆ°ç”»é¢ç©ºç™½å¤„</span>
       </label>
     </div>
   </div>
 
   <hr>
-  <h4>GitHub ×Ô¶¯¸üĞÂ</h4>
+  <h4>GitHub è‡ªåŠ¨æ›´æ–°</h4>
 
   <div class="form-row">
-    <label class="form-label">²Ö¿â</label>
+    <label class="form-label">ä»“åº“</label>
     <div class="form-control">
       <input type="text" id="updateRepoInput" placeholder="owner/repo">
-      <div class="hint-text">ÌîĞ´ GitHub ²Ö¿â£¬ÀıÈç liushuai0109001-cell/huiju-video-plugin¡£</div>
+      <div class="hint-text">å¡«å†™ GitHub ä»“åº“ï¼Œä¾‹å¦‚ liushuai0109001-cell/huiju-video-pluginã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">¸üĞÂ²Ù×÷</label>
+    <label class="form-label">æ›´æ–°æ“ä½œ</label>
     <div class="form-control toolbar-row">
-      <button type="button" id="btnCheckUpdate">¼ì²é¸üĞÂ</button>
-      <button type="button" id="btnApplyUpdate">ÏÂÔØ²¢¸üĞÂ</button>
+      <button type="button" id="btnCheckUpdate">æ£€æŸ¥æ›´æ–°</button>
+      <button type="button" id="btnApplyUpdate">ä¸‹è½½å¹¶æ›´æ–°</button>
       <div id="updateStatus" class="hint-text" style="flex-basis:100%;margin-top:2px;"></div>
     </div>
   </div>
 
   <hr>
-  <h4>ÏÂÔØºóÈ¥Ë®Ó¡</h4>
+  <h4>ä¸‹è½½åå»æ°´å°</h4>
 
   <div class="form-row">
-    <label class="form-label">ÆôÓÃ</label>
+    <label class="form-label">å¯ç”¨</label>
     <div class="form-control">
       <label class="inline-check">
         <input type="checkbox" id="watermarkRemoveEnabledInput">
-        <span>ÏÂÔØÍê³Éºó×Ô¶¯´¦Àí¹Ì¶¨Î»ÖÃË®Ó¡</span>
+        <span>ä¸‹è½½å®Œæˆåè‡ªåŠ¨å¤„ç†å›ºå®šä½ç½®æ°´å°</span>
       </label>
-      <div class="hint-text">Ê¹ÓÃ±¾µØ FFmpeg delogo ¹¤¾ßÖØĞÂ±àÂëÊÓÆµ£¬ÊÊºÏÎ»ÖÃ¹Ì¶¨µÄ½Ç±ê»òµ×²¿Ë®Ó¡¡£</div>
+      <div class="hint-text">ä½¿ç”¨æœ¬åœ° FFmpeg delogo å·¥å…·é‡æ–°ç¼–ç è§†é¢‘ï¼Œé€‚åˆä½ç½®å›ºå®šçš„è§’æ ‡æˆ–åº•éƒ¨æ°´å°ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">¹¤¾ßÂ·¾¶</label>
+    <label class="form-label">å·¥å…·è·¯å¾„</label>
     <div class="form-control">
       <div class="path-picker">
-        <input type="text" id="watermarkToolPathInput" value="" placeholder="Áô¿Õ×Ô¶¯É¨Ãè²å¼şÄÚÖÃ¹¤¾ß">
-        <button type="button" id="btnSelectWatermarkTool">ä¯ÀÀ...</button>
+        <input type="text" id="watermarkToolPathInput" value="" placeholder="ç•™ç©ºè‡ªåŠ¨æ‰«ææ’ä»¶å†…ç½®å·¥å…·">
+        <button type="button" id="btnSelectWatermarkTool">æµè§ˆ...</button>
       </div>
-      <div class="hint-text">Áô¿Õ»á×Ô¶¯Ê¹ÓÃ²å¼şÄÚÖÃ»òÏàÁÚÄ¿Â¼ÖĞµÄ remove_watermark.py¡£</div>
+      <div class="hint-text">ç•™ç©ºä¼šè‡ªåŠ¨ä½¿ç”¨æ’ä»¶å†…ç½®æˆ–ç›¸é‚»ç›®å½•ä¸­çš„ remove_watermark.pyã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">ÕÚÕÖ×ø±ê</label>
+    <label class="form-label">é®ç½©åæ ‡</label>
     <div class="form-control">
-      <input type="text" id="watermarkMasksInput" placeholder="ÀıÈç£º1040,650,220,50£»¶à¸öÓÃÓ¢ÎÄ·ÖºÅ·Ö¸ô">
-      <div class="hint-text">¸ñÊ½£ºx,y,w,h¡£¶à¸öË®Ó¡Ğ´³É x,y,w,h;x,y,w,h¡£</div>
+      <input type="text" id="watermarkMasksInput" placeholder="ä¾‹å¦‚ï¼š1040,650,220,50ï¼›å¤šä¸ªç”¨è‹±æ–‡åˆ†å·åˆ†éš”">
+      <div class="hint-text">æ ¼å¼ï¼šx,y,w,hã€‚å¤šä¸ªæ°´å°å†™æˆ x,y,w,h;x,y,w,hã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">ÖÊÁ¿ CRF</label>
+    <label class="form-label">è´¨é‡ CRF</label>
     <div class="form-control">
       <input type="number" id="watermarkCrfInput" value="18" min="14" max="32">
-      <div class="hint-text">Ô½Ğ¡Ô½ÇåÎú¡¢ÎÄ¼şÔ½´ó£»½¨Òé 18-23¡£</div>
+      <div class="hint-text">è¶Šå°è¶Šæ¸…æ™°ã€æ–‡ä»¶è¶Šå¤§ï¼›å»ºè®® 18-23ã€‚</div>
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">±àÂëËÙ¶È</label>
+    <label class="form-label">ç¼–ç é€Ÿåº¦</label>
     <div class="form-control">
       <select id="watermarkPresetSelect">
-        <option value="veryfast">veryfast ¸ü¿ì</option>
+        <option value="veryfast">veryfast æ›´å¿«</option>
         <option value="fast">fast</option>
-        <option value="medium" selected>medium Ä¬ÈÏ</option>
-        <option value="slow">slow ¸üÂı¸üĞ¡</option>
+        <option value="medium" selected>medium é»˜è®¤</option>
+        <option value="slow">slow æ›´æ…¢æ›´å°</option>
       </select>
     </div>
   </div>
 
   <hr>
-  <h4>ÊµÊ±ÈÕÖ¾</h4>
+  <h4>å®æ—¶æ—¥å¿—</h4>
   <div class="form-row" style="align-items:flex-start;">
-    <label class="form-label" style="margin-top:6px;">ÈÕÖ¾</label>
+    <label class="form-label" style="margin-top:6px;">æ—¥å¿—</label>
     <div class="form-control">
       <div class="toolbar-row" style="margin-bottom:6px;">
-        <button class="refresh-btn" id="btnRefreshLogs" type="button">Ë¢ĞÂÈÕÖ¾</button>
-        <button class="refresh-btn" id="btnClearLogs" type="button" style="opacity:0.75;">Çå¿Õ</button>
+        <button class="refresh-btn" id="btnRefreshLogs" type="button">åˆ·æ–°æ—¥å¿—</button>
+        <button class="refresh-btn" id="btnClearLogs" type="button" style="opacity:0.75;">æ¸…ç©º</button>
         <label class="inline-check" style="font-size:11px;min-height:auto;">
           <input type="checkbox" id="autoRefreshLogs" checked>
-          <span>×Ô¶¯Ë¢ĞÂ</span>
+          <span>è‡ªåŠ¨åˆ·æ–°</span>
         </label>
       </div>
       <div id="logPanel"></div>
-      <div class="hint-text">ÕâÀï»áÏÔÊ¾²Î¿¼Í¼Ê¶±ğ¡¢±àÂë¡¢ÉÏ´«¡¢ÈÎÎñÌá½»ºÍÏÂÔØ¹ı³Ì¡£</div>
+      <div class="hint-text">è¿™é‡Œä¼šæ˜¾ç¤ºå‚è€ƒå›¾è¯†åˆ«ã€ç¼–ç ã€ä¸Šä¼ ã€ä»»åŠ¡æäº¤å’Œä¸‹è½½è¿‡ç¨‹ã€‚</div>
     </div>
   </div>
 
   <hr>
-  <h4>ÂÖÑ¯ÉèÖÃ</h4>
+  <h4>è½®è¯¢è®¾ç½®</h4>
 
   <div class="form-row">
-    <label class="form-label">×î´óÂÖÑ¯´ÎÊı</label>
+    <label class="form-label">æœ€å¤§è½®è¯¢æ¬¡æ•°</label>
     <div class="form-control">
       <input type="number" id="maxPollInput" value="300" min="30" max="1000">
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">ÂÖÑ¯¼ä¸ô(Ãë)</label>
+    <label class="form-label">è½®è¯¢é—´éš”(ç§’)</label>
     <div class="form-control">
       <input type="number" id="pollIntervalInput" value="10" min="3" max="60">
     </div>
   </div>
 
   <div class="form-row">
-    <label class="form-label">×Ü³¬Ê±(Ãë)</label>
+    <label class="form-label">æ€»è¶…æ—¶(ç§’)</label>
     <div class="form-control">
       <input type="number" id="timeoutInput" value="900" min="60" max="3600">
     </div>
@@ -442,10 +442,10 @@
     function togglePassword(input, button) {
       if (input.type === 'password') {
         input.type = 'text';
-        button.textContent = 'Òş²Ø';
+        button.textContent = 'éšè—';
       } else {
         input.type = 'password';
-        button.textContent = 'ÏÔÊ¾';
+        button.textContent = 'æ˜¾ç¤º';
       }
     }
 
@@ -454,11 +454,11 @@
       var line = document.createElement('div');
       line.textContent = text;
       var lower = text.toLowerCase();
-      if (text.indexOf('²Î¿¼Í¼') !== -1 || lower.indexOf('image') !== -1 || lower.indexOf('reference') !== -1) {
+      if (text.indexOf('å‚è€ƒå›¾') !== -1 || lower.indexOf('image') !== -1 || lower.indexOf('reference') !== -1) {
         line.style.color = '#00b894';
         line.style.fontWeight = 'bold';
       }
-      if (text.indexOf('´íÎó') !== -1 || text.indexOf('Ê§°Ü') !== -1 || lower.indexOf('failed') !== -1 || lower.indexOf('error') !== -1) {
+      if (text.indexOf('é”™è¯¯') !== -1 || text.indexOf('å¤±è´¥') !== -1 || lower.indexOf('failed') !== -1 || lower.indexOf('error') !== -1) {
         line.style.color = '#d63031';
       }
       logPanel.appendChild(line);
@@ -511,7 +511,7 @@
       var supported = isChreComplianceModel(modelSelect.value);
       complianceEnabledInput.disabled = !supported;
       complianceModeSelect.disabled = !supported || !complianceEnabledInput.checked;
-      complianceEnabledInput.title = supported ? '' : 'µ±Ç°Ä£ĞÍ²»Ö§³ÖºÏ¹æËØ²Ä²ÎÊı';
+      complianceEnabledInput.title = supported ? '' : 'å½“å‰æ¨¡å‹ä¸æ”¯æŒåˆè§„ç´ æå‚æ•°';
     }
 
     function applyModelRules() {
@@ -544,17 +544,17 @@
       }
       PluginSDK.saveParam('model', modelSelect.value);
       applyModelRules();
-      setStatus('³É¹¦»ñÈ¡ ' + models.length + ' ¸öÄ£ĞÍ', 'success');
+      setStatus('æˆåŠŸè·å– ' + models.length + ' ä¸ªæ¨¡å‹', 'success');
     }
 
     function refreshModels() {
       var baseUrl = baseUrlInput.value.trim();
       var apiKey = apiKeyInput.value.trim();
       if (!baseUrl) {
-        setStatus('ÇëÏÈÌîĞ´ Base URL', 'error');
+        setStatus('è¯·å…ˆå¡«å†™ Base URL', 'error');
         return;
       }
-      setStatus('ÕıÔÚ»ñÈ¡Ä£ĞÍÁĞ±í...', 'loading');
+      setStatus('æ­£åœ¨è·å–æ¨¡å‹åˆ—è¡¨...', 'loading');
       btnRefresh.disabled = true;
       modelSelect.disabled = true;
       PluginSDK.sendAction('fetch_models', { base_url: baseUrl, api_key: apiKey, timeout: 15 });
@@ -580,7 +580,7 @@
           } else {
             btnRefresh.disabled = false;
             modelSelect.disabled = false;
-            setStatus('»ñÈ¡³¬Ê±£¬Çë¼ì²é URL ºÍ Key ÊÇ·ñÕıÈ·', 'error');
+            setStatus('è·å–è¶…æ—¶ï¼Œè¯·æ£€æŸ¥ URL å’Œ Key æ˜¯å¦æ­£ç¡®', 'error');
           }
         }).catch(function () {
           if (pollCount < pollMax) setTimeout(pollModelList, 500);
@@ -665,25 +665,25 @@
     btnSelectFaceTool.addEventListener('click', function () {
       PluginSDK.sendAction('select_local_file', {
         target: 'face_tool_path',
-        title: 'Ñ¡Ôñ×Ô¶¯ÈËÁ³´¦Àí¹¤¾ß½Å±¾',
+        title: 'é€‰æ‹©è‡ªåŠ¨äººè„¸å¤„ç†å·¥å…·è„šæœ¬',
         initial_path: faceToolPathInput.value.trim(),
-        filetypes: [['Python ½Å±¾', '*.py'], ['¿ÉÖ´ĞĞÎÄ¼ş', '*.exe'], ['ËùÓĞÎÄ¼ş', '*.*']]
+        filetypes: [['Python è„šæœ¬', '*.py'], ['å¯æ‰§è¡Œæ–‡ä»¶', '*.exe'], ['æ‰€æœ‰æ–‡ä»¶', '*.*']]
       });
     });
     btnSelectWatermarkTool.addEventListener('click', function () {
       PluginSDK.sendAction('select_local_file', {
         target: 'watermark_tool_path',
-        title: 'Ñ¡ÔñË®Ó¡´¦Àí¹¤¾ß½Å±¾',
+        title: 'é€‰æ‹©æ°´å°å¤„ç†å·¥å…·è„šæœ¬',
         initial_path: watermarkToolPathInput.value.trim(),
-        filetypes: [['Python ½Å±¾', '*.py'], ['¿ÉÖ´ĞĞÎÄ¼ş', '*.exe'], ['ËùÓĞÎÄ¼ş', '*.*']]
+        filetypes: [['Python è„šæœ¬', '*.py'], ['å¯æ‰§è¡Œæ–‡ä»¶', '*.exe'], ['æ‰€æœ‰æ–‡ä»¶', '*.*']]
       });
     });
     btnCheckUpdate.addEventListener('click', function () {
-      updateStatus.textContent = 'ÕıÔÚ¼ì²é¸üĞÂ...';
+      updateStatus.textContent = 'æ­£åœ¨æ£€æŸ¥æ›´æ–°...';
       PluginSDK.sendAction('check_update', { repo: updateRepoInput.value.trim() });
     });
     btnApplyUpdate.addEventListener('click', function () {
-      updateStatus.textContent = 'ÕıÔÚÏÂÔØ²¢¸üĞÂ...';
+      updateStatus.textContent = 'æ­£åœ¨ä¸‹è½½å¹¶æ›´æ–°...';
       PluginSDK.sendAction('apply_update', { repo: updateRepoInput.value.trim() });
     });
 
@@ -694,7 +694,7 @@
       btnRefresh.disabled = false;
       modelSelect.disabled = false;
       if (data.ok) populateModelDropdown(data.models || [], data.default_model || '', modelSelect.value);
-      else setStatus('»ñÈ¡Ê§°Ü£º' + (data.error || 'Î´Öª´íÎó'), 'error');
+      else setStatus('è·å–å¤±è´¥ï¼š' + (data.error || 'æœªçŸ¥é”™è¯¯'), 'error');
     });
     PluginSDK.onAction('select_local_file_result', function (data) {
       if (!data || !data.ok || !data.path) return;
@@ -710,20 +710,20 @@
       if (!data) return;
       if (data.ok) {
         updateStatus.textContent = data.has_update
-          ? ('·¢ÏÖĞÂ°æ±¾ ' + (data.latest_version || '') + '£¬¿ÉÖ±½ÓÏÂÔØ¸üĞÂ¡£')
-          : (data.message || 'ÒÑ¾­ÊÇ×îĞÂ°æ±¾');
+          ? ('å‘ç°æ–°ç‰ˆæœ¬ ' + (data.latest_version || '') + 'ï¼Œå¯ç›´æ¥ä¸‹è½½æ›´æ–°ã€‚')
+          : (data.message || 'å·²ç»æ˜¯æœ€æ–°ç‰ˆæœ¬');
       } else {
-        updateStatus.textContent = '¼ì²éÊ§°Ü£º' + (data.error || 'Î´Öª´íÎó');
+        updateStatus.textContent = 'æ£€æŸ¥å¤±è´¥ï¼š' + (data.error || 'æœªçŸ¥é”™è¯¯');
       }
     });
     PluginSDK.onAction('apply_update_result', function (data) {
       if (!data) return;
       if (data.ok && data.updated) {
-        updateStatus.textContent = '¸üĞÂÍê³É£º' + (data.latest_version || '') + '£¬ÒÑ±¸·İµ½ ' + (data.backup_dir || '');
+        updateStatus.textContent = 'æ›´æ–°å®Œæˆï¼š' + (data.latest_version || '') + 'ï¼Œå·²å¤‡ä»½åˆ° ' + (data.backup_dir || '');
       } else if (data.ok) {
-        updateStatus.textContent = data.message || 'ÒÑ¾­ÊÇ×îĞÂ°æ±¾';
+        updateStatus.textContent = data.message || 'å·²ç»æ˜¯æœ€æ–°ç‰ˆæœ¬';
       } else {
-        updateStatus.textContent = '¸üĞÂÊ§°Ü£º' + (data.error || 'Î´Öª´íÎó');
+        updateStatus.textContent = 'æ›´æ–°å¤±è´¥ï¼š' + (data.error || 'æœªçŸ¥é”™è¯¯');
       }
     });
 
