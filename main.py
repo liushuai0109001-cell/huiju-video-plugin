@@ -220,7 +220,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.5"
+_PLUGIN_VERSION = "1.2.6"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -794,9 +794,9 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
     _log(f"  [鍥惧簥] 寮€濮嬩笂浼? {image_path}")
     clean = str(image_path).split("?")[0]
     if not os.path.exists(clean):
-        raise Exception(f"PLUGIN_ERROR:::鍥剧墖鏂囦欢涓嶅瓨鍦? {clean}")
+        raise Exception(f"PLUGIN_ERROR:::图片文件不存在: {clean}")
     if not host_url:
-        raise Exception("PLUGIN_ERROR:::鍥惧簥鍦板潃鏈厤缃紝璇峰湪鎻掍欢璁剧疆涓～鍐?Image Host URL")
+        raise Exception("PLUGIN_ERROR:::图床地址未配置，请在插件设置中填写 Image Host URL")
 
     try:
         ext = os.path.splitext(clean)[1].lower()
@@ -844,7 +844,7 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
                 detail = resp.json()
             except Exception:
                 detail = resp.text[:500]
-            raise Exception(f"PLUGIN_ERROR:::鍥惧簥涓婁紶澶辫触 {resp.status_code}: {detail}")
+            raise Exception(f"PLUGIN_ERROR:::图床上传失败 {resp.status_code}: {detail}")
 
         try:
             data = resp.json()
@@ -854,7 +854,7 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
             if url.startswith("http"):
                 _log(f"  [鍥惧簥] 杩斿洖鏂囨湰 URL: {url}")
                 return url
-            raise Exception(f"PLUGIN_ERROR:::鍥惧簥杩斿洖闈?URL 鏂囨湰: {resp.text[:200]}")
+            raise Exception(f"PLUGIN_ERROR:::图床返回非 URL 文本: {resp.text[:200]}")
 
         # 灏濊瘯澶氱甯歌杩斿洖瀛楁
         url = None
@@ -873,7 +873,7 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
                         url = val
                         break
         if not url:
-            raise Exception(f"PLUGIN_ERROR:::鍥惧簥鍝嶅簲涓湭鎵惧埌 URL: {json.dumps(data, ensure_ascii=False)[:300]}")
+            raise Exception(f"PLUGIN_ERROR:::图床响应中未找到 URL: {json.dumps(data, ensure_ascii=False)[:300]}")
 
         _log(f"  [鍥惧簥] 涓婁紶鎴愬姛锛孶RL: {url}")
         return url
@@ -1177,7 +1177,7 @@ def generate(context):
                 ref_paths = ref_paths[:1]
 
             if progress_callback:
-                progress_callback("涓婁紶鍙傝€冨浘鍒板浘搴?..")
+                progress_callback("上传参考图到图床...")
 
             image_urls = []
             for p in ref_paths:
@@ -1186,7 +1186,7 @@ def generate(context):
                     image_urls.append(url)
 
             if not image_urls:
-                raise Exception("PLUGIN_ERROR:::鎵€鏈夊弬鑰冨浘涓婁紶澶辫触")
+                raise Exception("PLUGIN_ERROR:::所有参考图上传失败")
 
             _log(f"  [鍙傚浘] 鎴愬姛涓婁紶 {len(image_urls)} 寮犲浘鐗囧埌鍥惧簥")
 
@@ -1239,7 +1239,7 @@ def generate(context):
             headers["Content-Type"] = "application/json"
         
         if progress_callback:
-            progress_callback("鎻愪氦浠诲姟涓?..")
+            progress_callback("提交任务中...")
         
         # 璁＄畻璇锋眰浣撳ぇ灏忕敤浜庤瘖鏂?
         try:
@@ -1309,20 +1309,20 @@ def generate(context):
                 _log("  [diagnostic] check API key group permissions")
                 _log("  [diagnostic] check channel group/model settings in NewAPI")
                 _log("  [diagnostic] try another model or key with proper group permissions")
-            raise Exception(f"PLUGIN_ERROR:::API 閿欒 {resp.status_code}: {err}")
+            raise Exception(f"PLUGIN_ERROR:::API 错误 {resp.status_code}: {err}")
         
         result = resp.json()
         _log(f"  鎻愪氦鍝嶅簲: {json.dumps(result, ensure_ascii=False)[:500]}")
         
         task_id = result.get("task_id") or result.get("id")
         if not task_id:
-            raise Exception(f"PLUGIN_ERROR:::API 鍝嶅簲涓己灏戜换鍔?ID: {result}")
+            raise Exception(f"PLUGIN_ERROR:::API 响应中缺少任务 ID: {result}")
         
         _log(f"  浠诲姟 ID: {task_id}")
         
         # ===== 2. 杞浠诲姟鐘舵€?=====
         if progress_callback:
-            progress_callback("鐢熸垚涓?..", 0)
+            progress_callback("生成中...", 0)
         
         status_endpoint = f"{base_url}/v1/video/generations/{task_id}" if is_seedream else f"{base_url}/v1/videos/{task_id}"
         video_url = None
@@ -1379,13 +1379,13 @@ def generate(context):
             if progress_callback:
                 if progress_pct is not None:
                     try:
-                        progress_callback(f"鐢熸垚涓?({progress_pct}%)", int(progress_pct))
+                        progress_callback(f"生成中 ({progress_pct}%)", int(progress_pct))
                     except Exception:
-                        progress_callback(f"鐢熸垚涓?({progress_pct})")
+                        progress_callback(f"生成中 ({progress_pct})")
                 elif status_key in ("pending", "queued", "submitted"):
-                    progress_callback("鎺掗槦涓?..")
+                    progress_callback("排队中...")
                 elif status_key in ("processing", "in_progress"):
-                    progress_callback("鐢熸垚涓?..")
+                    progress_callback("生成中...")
             
             if is_seedream and status_key in ("success", "completed", "succeeded"):
                 video_url = _seedream_result_url(status_data)
@@ -1408,21 +1408,21 @@ def generate(context):
             elif status_key == "failed":
                 error_info = status_data.get("error", {})
                 if isinstance(error_info, dict):
-                    fail_msg = error_info.get("message", "鏈煡閿欒")
+                    fail_msg = error_info.get("message", "未知错误")
                 else:
-                    fail_msg = str(error_info) if error_info else "浠诲姟澶辫触"
-                raise Exception(f"PLUGIN_ERROR:::瑙嗛鐢熸垚澶辫触: {fail_msg}")
+                    fail_msg = str(error_info) if error_info else "任务失败"
+                raise Exception(f"PLUGIN_ERROR:::视频生成失败: {fail_msg}")
             elif is_seedream and status_key in ("failure", "cancelled", "canceled"):
-                raise Exception(f"PLUGIN_ERROR:::瑙嗛鐢熸垚澶辫触: {_seedream_failure_reason(status_data)}")
+                raise Exception(f"PLUGIN_ERROR:::视频生成失败: {_seedream_failure_reason(status_data)}")
         else:
-            raise Exception(f"PLUGIN_ERROR:::瓒呰繃鏈€澶ц疆璇㈡鏁?({max_poll})锛岃棰戞湭鐢熸垚")
+            raise Exception(f"PLUGIN_ERROR:::超过最大轮询次数 ({max_poll})，视频未生成")
         
         if not video_url:
-            raise Exception("PLUGIN_ERROR:::浠诲姟瀹屾垚浣嗘湭鑾峰彇鍒拌棰?URL")
+            raise Exception("PLUGIN_ERROR:::任务完成但未获取到视频 URL")
         
         # ===== 3. 涓嬭浇瑙嗛 =====
         if progress_callback:
-            progress_callback("涓嬭浇涓?..", 99)
+            progress_callback("下载中...", 99)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         video_name = f"{viewer_index:04d}_video_{timestamp}.mp4"
@@ -1473,15 +1473,15 @@ def generate(context):
                 _log(f"  澶囩敤涓嬭浇澶辫触: {e}")
         
         if not download_success:
-            raise Exception("PLUGIN_ERROR:::瑙嗛涓嬭浇澶辫触锛岃妫€鏌ョ綉缁滄垨绋嶅悗閲嶈瘯")
+            raise Exception("PLUGIN_ERROR:::视频下载失败，请检查网络或稍后重试")
 
         if str(plugin_params.get("watermark_remove_enabled", False)).strip().lower() in ("1", "true", "yes", "on"):
             if progress_callback:
-                progress_callback("鍘绘按鍗板鐞嗕腑...", 99)
+                progress_callback("去水印处理中...", 99)
             video_path = _remove_video_watermark(video_path, plugin_params)
         
         if progress_callback:
-            progress_callback("瀹屾垚", 100)
+            progress_callback("完成", 100)
         
         _log(f"[NewAPI Video] 鐢熸垚瀹屾垚: {video_path}")
         _log("=" * 80)
