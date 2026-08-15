@@ -164,7 +164,7 @@
         <option value="fishnet">鱼网 fishnet</option>
         <option value="grid">眼部遮罩 grid</option>
       </select>
-      <div class="hint-text">适用于 sd2-c6、sd2-c7、sd2-c8 及兼容的 CHRE Seedance 模型。</div>
+      <div class="hint-text">适用于 sd2-c6、sd2-c7、sd2-c8、sd2.5 及兼容的 CHRE Seedance 模型。</div>
     </div>
   </div>
 
@@ -506,7 +506,7 @@
 
     function isChreComplianceModel(value) {
       var model = String(value || '').trim().toLowerCase();
-      return model === 'sd2-c8' || model === 'sd2-c7' || model === 'sd2-c6' ||
+      return model === 'sd2-c8' || model === 'sd2-c7' || model === 'sd2-c6' || model === 'sd2.5' ||
         model === 'seedance-2.0-720p' || model === 'seedance-2.0-fast-720p';
     }
 

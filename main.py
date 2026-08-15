@@ -220,7 +220,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.4"
+_PLUGIN_VERSION = "1.2.5"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -577,6 +577,7 @@ def _is_chre_seedance_model(model: str) -> bool:
         "sd2-c6",
         "sd2-c7",
         "sd2-c8",
+        "sd2.5",
     }
 
 
@@ -610,6 +611,10 @@ def _normalize_grok_duration(model: str, duration: int) -> int:
 
 def _normalize_xingyao_duration(model: str, duration: int) -> int:
     m = str(model or "").strip().lower()
+    if m == "seedance2.5":
+        if duration != 14:
+            _log(f"  [Seedance 2.5] duration is fixed at 14 seconds; adjusted {duration} -> 14")
+        return 14
     if m == "seedance-2.5-720pv-1":
         if duration < 4:
             _log("  [Seedance 2.5] duration below 4 seconds; adjusted to 4")
@@ -1241,6 +1246,7 @@ def generate(context):
             payload_json = json.dumps(payload, ensure_ascii=False)
             req_size_kb = len(payload_json.encode('utf-8')) / 1024
             _log(f"  [NewAPI] 璇锋眰浣撳ぇ灏? {req_size_kb:.2f} KB")
+            _log(f"  [NewAPI] final request JSON: {payload_json}")
         except Exception:
             pass
         
