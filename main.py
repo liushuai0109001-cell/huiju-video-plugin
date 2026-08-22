@@ -208,19 +208,21 @@ def _apply_github_update(repo: str, preferred_asset_name: str = "") -> dict:
 
 
 def _merge_plugin_params(context_params):
-    """Prefer the saved config for core settings to avoid stale host-side params."""
-    disk_params = get_params()
-    merged = {}
-    if isinstance(context_params, dict):
-        merged.update(context_params)
+    """Merge defaults, saved settings, then values from the current request."""
+    disk_params = load_plugin_config(_PLUGIN_FILE)
+    merged = _DEFAULT_PARAMS.copy()
     for key, value in disk_params.items():
         if value not in (None, ""):
             merged[key] = value
+    if isinstance(context_params, dict):
+        for key, value in context_params.items():
+            if value not in (None, ""):
+                merged[key] = value
     return merged, disk_params, (context_params if isinstance(context_params, dict) else {})
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.6"
+_PLUGIN_VERSION = "1.2.7"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
