@@ -48,20 +48,6 @@ def _log(msg):
         pass
 
 
-def _get_recent_logs(lines=100):
-    """Read recent plugin log lines."""
-    try:
-        log_dir = plugin_dir / "logs"
-        log_file = log_dir / f"debug_{datetime.now().strftime('%Y%m%d')}.log"
-        if not log_file.exists():
-            return []
-        with open(log_file, "r", encoding="utf-8") as f:
-            all_lines = f.readlines()
-        return all_lines[-lines:]
-    except Exception:
-        return []
-
-
 def _version_tuple(value: str):
     text = str(value or "").strip().lstrip("vV")
     parts = []
@@ -80,18 +66,38 @@ def _normalize_update_repo(value: str) -> str:
     return text.strip("/ ")
 
 
+def _get_jsdelivr_latest_version(repo: str, timeout: int = 20) -> str:
+    url = f"https://data.jsdelivr.com/v1/package/gh/{repo}"
+    response = requests.get(url, timeout=timeout, proxies={"http": None, "https": None})
+    response.raise_for_status()
+    versions = response.json().get("versions") or []
+    return max((str(item) for item in versions), key=_version_tuple, default="")
+
+
 def _get_latest_release(repo: str, timeout: int = 20) -> dict:
     repo = _normalize_update_repo(repo)
     if not repo or "/" not in repo:
         return {"ok": False, "error": "插件内置更新源无效"}
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "huiju-video-plugin-updater"}
-    release_url = f"https://api.github.com/repos/{repo}/releases/latest"
-    release_resp = requests.get(release_url, headers=headers, timeout=timeout, proxies={"http": None, "https": None})
-    release = release_resp.json() if release_resp.status_code == 200 else {}
-
-    tags_url = f"https://api.github.com/repos/{repo}/tags?per_page=30"
-    tags_resp = requests.get(tags_url, headers=headers, timeout=timeout, proxies={"http": None, "https": None})
-    tags = tags_resp.json() if tags_resp.status_code == 200 else []
+    release = {}
+    tags = []
+    github_errors = []
+    try:
+        release_url = f"https://api.github.com/repos/{repo}/releases/latest"
+        release_resp = requests.get(release_url, headers=headers, timeout=timeout, proxies={"http": None, "https": None})
+        release = release_resp.json() if release_resp.status_code == 200 else {}
+        if release_resp.status_code not in (200, 404):
+            github_errors.append(f"Release HTTP {release_resp.status_code}")
+    except requests.RequestException as exc:
+        github_errors.append(str(exc))
+    try:
+        tags_url = f"https://api.github.com/repos/{repo}/tags?per_page=30"
+        tags_resp = requests.get(tags_url, headers=headers, timeout=timeout, proxies={"http": None, "https": None})
+        tags = tags_resp.json() if tags_resp.status_code == 200 else []
+        if tags_resp.status_code != 200:
+            github_errors.append(f"Tags HTTP {tags_resp.status_code}")
+    except requests.RequestException as exc:
+        github_errors.append(str(exc))
     valid_tags = [item for item in tags if isinstance(item, dict) and item.get("name") and item.get("zipball_url")]
     latest_tag = max(valid_tags, key=lambda item: _version_tuple(item.get("name")), default={})
 
@@ -108,10 +114,27 @@ def _get_latest_release(repo: str, timeout: int = 20) -> dict:
             "release_name": tag_name,
             "html_url": f"https://github.com/{repo}/tree/{tag_name}",
             "assets": [{"name": f"{tag_name}.zip", "download_url": latest_tag["zipball_url"]}],
+            "update_channel": "GitHub（下载失败时自动切换 CDN）",
         }
     if not release:
-        error_status = release_resp.status_code if release_resp.status_code != 404 else tags_resp.status_code
-        return {"ok": False, "error": f"GitHub 更新源不可用，HTTP {error_status}"}
+        try:
+            latest = _get_jsdelivr_latest_version(repo, timeout)
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            details = "; ".join(github_errors + [f"CDN: {exc}"])
+            return {"ok": False, "error": f"更新源不可用：{details}"}
+        if not latest:
+            return {"ok": False, "error": "更新源没有可用版本"}
+        return {
+            "ok": True,
+            "repo": repo,
+            "current_version": _PLUGIN_VERSION,
+            "latest_version": latest.lstrip("vV"),
+            "has_update": _version_tuple(latest) > _version_tuple(_PLUGIN_VERSION),
+            "release_name": latest,
+            "html_url": f"https://cdn.jsdelivr.net/gh/{repo}@{latest}/",
+            "assets": [],
+            "update_channel": "jsDelivr CDN",
+        }
 
     latest = str(release.get("tag_name") or "").lstrip("v")
     assets = [
@@ -130,6 +153,7 @@ def _get_latest_release(repo: str, timeout: int = 20) -> dict:
         "release_name": release.get("name") or release.get("tag_name") or "",
         "html_url": release.get("html_url") or "",
         "assets": assets,
+        "update_channel": "GitHub（下载失败时自动切换 CDN）",
     }
 
 
@@ -161,6 +185,50 @@ def _copy_plugin_update(source_dir: Path) -> Path:
     return backup_dir
 
 
+def _download_jsdelivr_update(repo: str, version: str, source_dir: Path, timeout: int = 60) -> None:
+    metadata_url = f"https://data.jsdelivr.com/v1/package/gh/{repo}@{version}"
+    response = requests.get(metadata_url, timeout=timeout, proxies={"http": None, "https": None})
+    response.raise_for_status()
+    files = response.json().get("files") or []
+
+    def download_entries(entries, relative=Path()):
+        for entry in entries:
+            name = str(entry.get("name") or "")
+            if not name or name in {".", ".."} or "/" in name or "\\" in name:
+                continue
+            target_relative = relative / name
+            if entry.get("type") == "directory":
+                download_entries(entry.get("files") or [], target_relative)
+                continue
+            if entry.get("type") != "file" or name == ".gitignore":
+                continue
+            relative_text = target_relative.as_posix()
+            if relative_text not in {"main.py", "info.json"} and not relative_text.startswith("ui/"):
+                continue
+            target = source_dir / target_relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            file_path = requests.utils.quote(relative_text, safe="/")
+            last_error = None
+            for cdn_host in ("cdn.jsdelivr.net", "gcore.jsdelivr.net"):
+                file_url = f"https://{cdn_host}/gh/{repo}@{version}/{file_path}"
+                try:
+                    file_response = requests.get(
+                        file_url, timeout=min(timeout, 20), proxies={"http": None, "https": None}
+                    )
+                    file_response.raise_for_status()
+                    target.write_bytes(file_response.content)
+                    last_error = None
+                    break
+                except requests.RequestException as exc:
+                    last_error = exc
+            if last_error is not None:
+                raise last_error
+
+    download_entries(files)
+    if not (source_dir / "main.py").exists() or not (source_dir / "ui" / "index.html").exists():
+        raise ValueError("CDN 更新文件不完整")
+
+
 def _apply_github_update(repo: str, preferred_asset_name: str = "") -> dict:
     release = _get_latest_release(repo)
     if not release.get("ok"):
@@ -168,41 +236,47 @@ def _apply_github_update(repo: str, preferred_asset_name: str = "") -> dict:
     if not release.get("has_update"):
         return {"ok": True, "updated": False, **release}
     asset = _choose_update_asset(release, preferred_asset_name)
-    if not asset:
-        return {"ok": False, "error": "最新 Release 没有可下载的 zip 资源", **release}
 
     with tempfile.TemporaryDirectory(prefix="huiju_plugin_update_") as temp_name:
         temp_dir = Path(temp_name)
-        zip_path = temp_dir / (asset.get("name") or "update.zip")
-        _log(f"[update] downloading {asset.get('download_url')}")
-        with requests.get(asset["download_url"], stream=True, timeout=180, proxies={"http": None, "https": None}) as resp:
-            if resp.status_code != 200:
-                return {"ok": False, "error": f"下载失败 HTTP {resp.status_code}: {resp.text[:200]}", **release}
-            with open(zip_path, "wb") as fh:
-                for chunk in resp.iter_content(chunk_size=1024 * 512):
-                    if chunk:
-                        fh.write(chunk)
-        extract_dir = temp_dir / "extract"
-        with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(extract_dir)
-
-        candidates = [extract_dir]
-        candidates.extend([p for p in extract_dir.rglob("*") if p.is_dir()])
         source_dir = None
-        for candidate in candidates:
-            if (candidate / "main.py").exists() and (candidate / "ui" / "index.html").exists():
-                source_dir = candidate
-                break
+        github_error = ""
+        if asset and asset.get("download_url"):
+            try:
+                zip_path = temp_dir / (asset.get("name") or "update.zip")
+                _log(f"[update] downloading {asset.get('download_url')}")
+                with requests.get(asset["download_url"], stream=True, timeout=180, proxies={"http": None, "https": None}) as resp:
+                    resp.raise_for_status()
+                    with open(zip_path, "wb") as fh:
+                        for chunk in resp.iter_content(chunk_size=1024 * 512):
+                            if chunk:
+                                fh.write(chunk)
+                extract_dir = temp_dir / "extract"
+                with zipfile.ZipFile(zip_path) as archive:
+                    archive.extractall(extract_dir)
+                candidates = [extract_dir]
+                candidates.extend([p for p in extract_dir.rglob("*") if p.is_dir()])
+                source_dir = next((candidate for candidate in candidates
+                                   if (candidate / "main.py").exists() and (candidate / "ui" / "index.html").exists()), None)
+            except (requests.RequestException, zipfile.BadZipFile, OSError) as exc:
+                github_error = str(exc)
+                _log(f"[update] GitHub download failed, switching to CDN: {exc}")
         if source_dir is None:
-            return {"ok": False, "error": "更新包内没有找到插件 main.py 和 ui/index.html", **release}
+            source_dir = temp_dir / "cdn"
+            try:
+                _download_jsdelivr_update(repo, release.get("latest_version") or "", source_dir)
+                release["update_channel"] = "jsDelivr CDN"
+            except (requests.RequestException, ValueError, OSError) as exc:
+                details = f"GitHub: {github_error}; CDN: {exc}" if github_error else f"CDN: {exc}"
+                return {"ok": False, "error": f"更新下载失败：{details}", **release}
 
         backup_dir = _copy_plugin_update(source_dir)
         update_plugin_params(_PLUGIN_FILE, {
             "update_repo": _normalize_update_repo(repo),
-            "update_asset_name": asset.get("name") or "",
+            "update_asset_name": asset.get("name") if asset else "",
             "last_update_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         })
-        return {"ok": True, "updated": True, "backup_dir": str(backup_dir), "asset": asset.get("name") or "", **release}
+        return {"ok": True, "updated": True, "backup_dir": str(backup_dir), "asset": asset.get("name") if asset else "", **release}
 
 
 def _merge_plugin_params(context_params):
@@ -220,7 +294,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.9"
+_PLUGIN_VERSION = "1.2.10"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -1327,11 +1401,6 @@ def handle_action(action, data=None):
         asset_name = str(data.get("asset_name") or get_params().get("update_asset_name") or "").strip()
         return _apply_github_update(_UPDATE_REPO, asset_name)
 
-    elif action == "get_logs":
-        lines = int(data.get("lines", 100))
-        logs = _get_recent_logs(lines)
-        return {"ok": True, "logs": logs}
-    
     else:
         return {"ok": False, "error": f"鏈煡鍔ㄤ綔: {action}"}
 

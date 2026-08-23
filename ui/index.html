@@ -36,12 +36,6 @@
       border-radius: 50%; animation: spin 0.6s linear infinite;
       vertical-align: middle; margin-right: 4px;
     }
-    #logPanel {
-      background: var(--bg-secondary); border: 1px solid var(--border-color);
-      border-radius: 6px; padding: 8px; height: 200px; overflow-y: auto;
-      font-family: Consolas, monospace; font-size: 11px; line-height: 1.5;
-      white-space: pre-wrap; word-break: break-all;
-    }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
@@ -51,7 +45,7 @@
     <strong>使用前必须先创建 API Key</strong>
     请前往 <a href="https://huiju.v888.art/" target="_blank" rel="noopener noreferrer">荟聚中转站</a> 注册并创建密钥，然后填写到下方 API Key。
   </div>
-  <p class="hint-text">兼容 OpenAI Sora / Grok / Seedream 等视频生成接口，支持自定义 API 地址、密钥、参考图上传、合规素材和 GitHub 自动更新。</p>
+  <p class="hint-text">兼容 OpenAI Sora / Grok / Seedream 等视频生成接口，支持自定义 API 地址、密钥、参考图上传、合规素材和自动更新。</p>
   <hr>
 
   <div class="form-row">
@@ -217,31 +211,13 @@
   </div>
 
   <hr>
-  <h4>GitHub 自动更新</h4>
+  <h4>插件自动更新</h4>
   <div class="form-row">
     <label class="form-label">版本更新</label>
     <div class="form-control toolbar-row">
       <button type="button" id="btnCheckUpdate">检查更新</button>
       <button type="button" id="btnApplyUpdate" disabled>下载并更新</button>
       <div id="updateStatus" class="hint-text" style="flex-basis:100%;margin-top:2px;"></div>
-    </div>
-  </div>
-
-  <hr>
-  <h4>实时日志</h4>
-  <div class="form-row" style="align-items:flex-start;">
-    <label class="form-label" style="margin-top:6px;">日志</label>
-    <div class="form-control">
-      <div class="toolbar-row" style="margin-bottom:6px;">
-        <button class="refresh-btn" id="btnRefreshLogs" type="button">刷新日志</button>
-        <button class="refresh-btn" id="btnClearLogs" type="button" style="opacity:0.75;">清空</button>
-        <label class="inline-check" style="font-size:11px;min-height:auto;">
-          <input type="checkbox" id="autoRefreshLogs" checked>
-          <span>自动刷新</span>
-        </label>
-      </div>
-      <div id="logPanel"></div>
-      <div class="hint-text">这里会显示参考图识别、编码、上传、任务提交和下载过程。</div>
     </div>
   </div>
 
@@ -271,10 +247,6 @@
 
   <script src="../../../plugin-sdk.js"></script>
   <script>
-    var logPanel = document.getElementById('logPanel');
-    var btnRefreshLogs = document.getElementById('btnRefreshLogs');
-    var btnClearLogs = document.getElementById('btnClearLogs');
-    var autoRefreshLogs = document.getElementById('autoRefreshLogs');
     var apiKeyInput = document.getElementById('apiKeyInput');
     var baseUrlInput = document.getElementById('baseUrlInput');
     var modelSelect = document.getElementById('modelSelect');
@@ -317,8 +289,6 @@
       updateFailed: '\u66f4\u65b0\u5931\u8d25\uff1a',
       unknown: '\u672a\u77e5\u9519\u8bef'
     };
-    var _logTimer = null;
-    var _lastLogLine = '';
 
     function setSelectValue(sel, val) {
       if (val == null) return;
@@ -351,52 +321,6 @@
         input.type = 'password';
         button.textContent = '显示';
       }
-    }
-
-    function appendLog(text) {
-      if (!text) return;
-      var line = document.createElement('div');
-      line.textContent = text;
-      var lower = text.toLowerCase();
-      if (text.indexOf('参考图') !== -1 || lower.indexOf('image') !== -1 || lower.indexOf('reference') !== -1) {
-        line.style.color = '#00b894';
-        line.style.fontWeight = 'bold';
-      }
-      if (text.indexOf('错误') !== -1 || text.indexOf('失败') !== -1 || lower.indexOf('failed') !== -1 || lower.indexOf('error') !== -1) {
-        line.style.color = '#d63031';
-      }
-      logPanel.appendChild(line);
-      logPanel.scrollTop = logPanel.scrollHeight;
-      while (logPanel.children.length > 200) {
-        logPanel.removeChild(logPanel.firstChild);
-      }
-    }
-
-    function renderLogs(logLines) {
-      if (!logLines || !logLines.length) return;
-      for (var i = 0; i < logLines.length; i++) {
-        var line = String(logLines[i] || '').replace(/\n$/, '');
-        if (line && line !== _lastLogLine) {
-          appendLog(line);
-          _lastLogLine = line;
-        }
-      }
-    }
-
-    function fetchLogs() {
-      PluginSDK.sendAction('get_logs', { lines: 100 });
-    }
-
-    function startAutoRefresh() {
-      if (_logTimer) clearInterval(_logTimer);
-      if (autoRefreshLogs.checked) {
-        _logTimer = setInterval(fetchLogs, 2000);
-      }
-    }
-
-    function stopAutoRefresh() {
-      if (_logTimer) clearInterval(_logTimer);
-      _logTimer = null;
     }
 
     function isSchatFast9RefModel(value) {
@@ -501,16 +425,6 @@
 
     toggleEye.addEventListener('click', function () { togglePassword(apiKeyInput, toggleEye); });
     toggleHostEye.addEventListener('click', function () { togglePassword(imageHostTokenInput, toggleHostEye); });
-    btnRefreshLogs.addEventListener('click', fetchLogs);
-    btnClearLogs.addEventListener('click', function () {
-      logPanel.innerHTML = '';
-      _lastLogLine = '';
-    });
-    autoRefreshLogs.addEventListener('change', function () {
-      if (autoRefreshLogs.checked) startAutoRefresh();
-      else stopAutoRefresh();
-    });
-
     baseUrlInput.addEventListener('input', function () {
       PluginSDK.saveParam('base_url', baseUrlInput.value);
       scheduleAutoRefresh();
@@ -561,9 +475,6 @@
       PluginSDK.sendAction('apply_update', {});
     });
 
-    PluginSDK.onAction('get_logs_result', function (data) {
-      if (data && data.ok) renderLogs(data.logs || []);
-    });
     PluginSDK.onAction('fetch_models_result', function (data) {
       btnRefresh.disabled = false;
       modelSelect.disabled = false;
@@ -672,8 +583,6 @@
         if (!params.model_list && params.base_url && params.api_key) {
           scheduleAutoRefresh();
         }
-        fetchLogs();
-        startAutoRefresh();
         updateStatus.textContent = UPDATE_TEXT.autoChecking;
         PluginSDK.sendAction('check_update', {});
       });
