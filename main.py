@@ -67,11 +67,20 @@ def _normalize_update_repo(value: str) -> str:
 
 
 def _get_jsdelivr_latest_version(repo: str, timeout: int = 20) -> str:
-    url = f"https://data.jsdelivr.com/v1/package/gh/{repo}"
-    response = requests.get(url, timeout=timeout, proxies={"http": None, "https": None})
-    response.raise_for_status()
-    versions = response.json().get("versions") or []
-    return max((str(item) for item in versions), key=_version_tuple, default="")
+    last_error = None
+    for cdn_host in ("cdn.jsdelivr.net", "gcore.jsdelivr.net"):
+        url = f"https://{cdn_host}/gh/{repo}@main/main.py"
+        try:
+            response = requests.get(url, timeout=min(timeout, 10), proxies={"http": None, "https": None})
+            response.raise_for_status()
+            for line in response.text.splitlines():
+                if line.strip().startswith("_PLUGIN_VERSION") and "=" in line:
+                    return line.split("=", 1)[1].strip().strip("\"'")
+        except requests.RequestException as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    return ""
 
 
 def _get_latest_release(repo: str, timeout: int = 20) -> dict:
@@ -186,47 +195,27 @@ def _copy_plugin_update(source_dir: Path) -> Path:
 
 
 def _download_jsdelivr_update(repo: str, version: str, source_dir: Path, timeout: int = 60) -> None:
-    metadata_url = f"https://data.jsdelivr.com/v1/package/gh/{repo}@{version}"
-    response = requests.get(metadata_url, timeout=timeout, proxies={"http": None, "https": None})
-    response.raise_for_status()
-    files = response.json().get("files") or []
-
-    def download_entries(entries, relative=Path()):
-        for entry in entries:
-            name = str(entry.get("name") or "")
-            if not name or name in {".", ".."} or "/" in name or "\\" in name:
-                continue
-            target_relative = relative / name
-            if entry.get("type") == "directory":
-                download_entries(entry.get("files") or [], target_relative)
-                continue
-            if entry.get("type") != "file" or name == ".gitignore":
-                continue
-            relative_text = target_relative.as_posix()
-            if relative_text not in {"main.py", "info.json"} and not relative_text.startswith("ui/"):
-                continue
-            target = source_dir / target_relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            file_path = requests.utils.quote(relative_text, safe="/")
-            last_error = None
-            for cdn_host in ("cdn.jsdelivr.net", "gcore.jsdelivr.net"):
-                file_url = f"https://{cdn_host}/gh/{repo}@{version}/{file_path}"
-                try:
-                    file_response = requests.get(
-                        file_url, timeout=min(timeout, 20), proxies={"http": None, "https": None}
-                    )
-                    file_response.raise_for_status()
-                    target.write_bytes(file_response.content)
-                    last_error = None
-                    break
-                except requests.RequestException as exc:
-                    last_error = exc
-            if last_error is not None:
-                raise last_error
-
-    download_entries(files)
-    if not (source_dir / "main.py").exists() or not (source_dir / "ui" / "index.html").exists():
-        raise ValueError("CDN 更新文件不完整")
+    if not version:
+        raise ValueError("CDN 更新版本为空")
+    for relative_text in ("main.py", "info.json", "ui/index.html"):
+        target = source_dir / Path(relative_text)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        file_path = requests.utils.quote(relative_text, safe="/")
+        last_error = None
+        for cdn_host in ("cdn.jsdelivr.net", "gcore.jsdelivr.net"):
+            file_url = f"https://{cdn_host}/gh/{repo}@{version}/{file_path}"
+            try:
+                file_response = requests.get(
+                    file_url, timeout=min(timeout, 20), proxies={"http": None, "https": None}
+                )
+                file_response.raise_for_status()
+                target.write_bytes(file_response.content)
+                last_error = None
+                break
+            except requests.RequestException as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
 
 
 def _apply_github_update(repo: str, preferred_asset_name: str = "") -> dict:
@@ -294,7 +283,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.10"
+_PLUGIN_VERSION = "1.2.11"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
