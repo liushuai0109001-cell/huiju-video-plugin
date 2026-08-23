@@ -19,9 +19,7 @@ import base64
 import json
 import mimetypes
 import os
-import shlex
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -222,7 +220,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.7"
+_PLUGIN_VERSION = "1.2.8"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -247,19 +245,6 @@ _DEFAULT_PARAMS = {
     "image_host_url": "https://huiju.v888.art/upload",
     "image_host_token": "huiju-upload-2026",
     "image_host_timeout": 60,
-    # 鍥哄畾浣嶇疆姘村嵃娓呯悊锛氫笅杞藉畬鎴愬悗璋冪敤鏈湴 FFmpeg delogo 宸ュ叿浜屾澶勭悊瑙嗛
-    "watermark_remove_enabled": False,
-    "watermark_tool_path": "",
-    "watermark_masks": "",
-    "watermark_crf": 18,
-    "watermark_preset": "medium",
-    "face_cover_enabled": True,
-    "face_tool_path": r"G:\自动人脸处理工具\face_tool.py",
-    "face_tool_python": "py -3.10",
-    "face_black_y_offset": 8,
-    "face_black_height": 36,
-    "face_black_pad_x": 20,
-    "face_paste_eyes_enabled": True,
     "update_repo": _UPDATE_REPO,
     "update_asset_name": "",
 }
@@ -314,226 +299,6 @@ def _ratio_to_size(aspect_ratio: str):
     except Exception:
         pass
     return 1280, 720
-
-
-def _parse_watermark_masks(mask_text: str):
-    masks = []
-    for raw_item in str(mask_text or "").replace("\n", ";").split(";"):
-        item = raw_item.strip()
-        if not item:
-            continue
-        parts = [p.strip() for p in item.split(",")]
-        if len(parts) != 4:
-            raise ValueError(f"閬僵鍧愭爣鏍煎紡閿欒: {item}锛屽簲涓?x,y,w,h")
-        nums = [int(float(p)) for p in parts]
-        if nums[0] < 0 or nums[1] < 0 or nums[2] <= 0 or nums[3] <= 0:
-            raise ValueError(f"閬僵鍧愭爣涓嶈兘涓鸿礋锛屽楂樺繀椤诲ぇ浜?0: {item}")
-        masks.append(",".join(str(n) for n in nums))
-    return masks
-
-
-def _resolve_watermark_tool_path(configured_path: str) -> str:
-    configured = str(configured_path or "").strip().strip('"')
-    candidates = []
-    if configured:
-        candidates.append(Path(configured))
-
-    candidates.extend([
-        plugin_dir / "video-watermark-batch-tool" / "remove_watermark.py",
-        plugin_dir.parent / "video-watermark-batch-tool" / "remove_watermark.py",
-        plugin_dir.parent.parent / "video-watermark-batch-tool" / "remove_watermark.py",
-    ])
-
-    for candidate in candidates:
-        try:
-            path = candidate.expanduser().resolve()
-            if path.is_file():
-                return str(path)
-        except Exception:
-            continue
-    return configured
-
-
-def _remove_video_watermark(video_path: str, plugin_params: dict) -> str:
-    enabled = str(plugin_params.get("watermark_remove_enabled", False)).strip().lower() in ("1", "true", "yes", "on")
-    if not enabled:
-        return video_path
-
-    tool_path = _resolve_watermark_tool_path(str(plugin_params.get("watermark_tool_path") or ""))
-    if not tool_path:
-        _log("  [watermark] enabled but remove_watermark.py was not found, skipped")
-        return video_path
-    if not os.path.exists(tool_path):
-        _log(f"  [鍘绘按鍗癩 宸ュ叿涓嶅瓨鍦紝璺宠繃: {tool_path}")
-        return video_path
-
-    try:
-        masks = _parse_watermark_masks(str(plugin_params.get("watermark_masks") or ""))
-    except Exception as exc:
-        _log(f"  [鍘绘按鍗癩 閬僵閰嶇疆閿欒锛岃烦杩? {exc}")
-        return video_path
-    if not masks:
-        _log("  [鍘绘按鍗癩 宸插紑鍚絾鏈厤缃伄缃╁潗鏍囷紝璺宠繃")
-        return video_path
-
-    source = Path(video_path)
-    target = source.with_name(f"{source.stem}_clean{source.suffix}")
-    crf = int(plugin_params.get("watermark_crf", 18) or 18)
-    preset = str(plugin_params.get("watermark_preset", "medium") or "medium").strip()
-    if preset not in {"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"}:
-        preset = "medium"
-
-    command = [
-        sys.executable,
-        tool_path,
-        "--input",
-        str(source),
-        "--output",
-        str(target),
-        "--overwrite",
-        "--crf",
-        str(crf),
-        "--preset",
-        preset,
-    ]
-    for mask in masks:
-        command.extend(["--mask", mask])
-
-    _log(f"  [鍘绘按鍗癩 寮€濮嬪鐞? {source.name} -> {target.name}")
-    _log(f"  [鍘绘按鍗癩 閬僵: {'; '.join(masks)}, crf={crf}, preset={preset}")
-    try:
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=3600,
-        )
-    except Exception as exc:
-        _log(f"  [鍘绘按鍗癩 璋冪敤澶辫触锛屼繚鐣欏師瑙嗛: {exc}")
-        return video_path
-
-    if result.stdout:
-        _log(f"  [鍘绘按鍗癩 杈撳嚭: {result.stdout.strip()[:500]}")
-    if result.stderr:
-        _log(f"  [鍘绘按鍗癩 閿欒杈撳嚭: {result.stderr.strip()[:500]}")
-    if result.returncode != 0 or not target.exists():
-        _log(f"  [鍘绘按鍗癩 澶勭悊澶辫触锛屼繚鐣欏師瑙嗛锛岄€€鍑虹爜: {result.returncode}")
-        return video_path
-
-    _log(f"  [鍘绘按鍗癩 澶勭悊瀹屾垚: {target}")
-    return str(target)
-
-
-def _resolve_face_tool_path(configured_path: str) -> str:
-    configured = str(configured_path or "").strip().strip('"')
-    candidates = []
-    if configured:
-        candidates.append(Path(configured))
-    candidates.extend([
-        plugin_dir / "face_tool.py",
-        Path(r"G:\自动人脸处理工具\face_tool.py"),
-    ])
-    for candidate in candidates:
-        try:
-            path = candidate.expanduser().resolve()
-            if path.is_file():
-                return str(path)
-        except Exception:
-            continue
-    return configured
-
-
-def _face_python_command(configured_python: str) -> list:
-    configured = str(configured_python or "").strip()
-    if configured:
-        try:
-            return shlex.split(configured, posix=False)
-        except Exception:
-            return [configured]
-    return [sys.executable]
-
-
-def _cover_reference_image_faces(image_path: str, project_path: str, plugin_params: dict) -> str:
-    enabled = str(plugin_params.get("face_cover_enabled", True)).strip().lower() in ("1", "true", "yes", "on")
-    if not enabled:
-        return image_path
-
-    source = Path(str(image_path).split("?")[0])
-    if not source.is_file():
-        return image_path
-
-    tool_path = _resolve_face_tool_path(str(plugin_params.get("face_tool_path") or ""))
-    if not tool_path or not os.path.exists(tool_path):
-        _log(f"  [face-cover] enabled but face_tool.py was not found, skipped: {tool_path}")
-        return image_path
-
-    try:
-        output_dir = Path(project_path or source.parent) / ".huiju_face_cover"
-        output_dir.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        output_dir = source.parent / ".huiju_face_cover"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-    destination = output_dir / f"{source.stem}_eyes_covered{source.suffix.lower()}"
-    if Path(tool_path).suffix.lower() == ".exe":
-        command = [tool_path]
-    else:
-        command = _face_python_command(str(plugin_params.get("face_tool_python") or "")) + [tool_path]
-    command.extend([
-        "--cli",
-        "--input",
-        str(source),
-        "--output",
-        str(destination),
-        "--mode",
-        "eye-all",
-        "--black-y-offset",
-        str(int(plugin_params.get("face_black_y_offset", 8) or 8)),
-        "--black-height",
-        str(int(plugin_params.get("face_black_height", 36) or 36)),
-        "--black-pad-x",
-        str(int(plugin_params.get("face_black_pad_x", 20) or 20)),
-    ])
-    paste_enabled = str(plugin_params.get("face_paste_eyes_enabled", True)).strip().lower() in ("1", "true", "yes", "on")
-    if not paste_enabled:
-        command.append("--no-paste")
-
-    _log(f"  [face-cover] processing reference image: {source}")
-    try:
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=180,
-        )
-    except Exception as exc:
-        _log(f"  [face-cover] failed to call face tool, keeping original: {exc}")
-        return image_path
-
-    if result.stdout:
-        _log(f"  [face-cover] output: {result.stdout.strip()[:500]}")
-    if result.stderr:
-        _log(f"  [face-cover] stderr: {result.stderr.strip()[:500]}")
-    if result.returncode != 0 or not destination.exists():
-        _log(f"  [face-cover] processing failed, keeping original. returncode={result.returncode}")
-        return image_path
-
-    _log(f"  [face-cover] using processed reference image: {destination}")
-    return str(destination)
-
-
-def _cover_reference_image_faces_batch(ref_paths: list, project_path: str, plugin_params: dict) -> list:
-    processed = []
-    for path in ref_paths:
-        processed_path = _cover_reference_image_faces(path, project_path, plugin_params)
-        processed.append(processed_path)
-    return processed
 
 
 def _is_seedream_model(model: str) -> bool:
@@ -1150,11 +915,6 @@ def generate(context):
             _log("  [SChat SD2.0 Fast 9ref] switched to multi-image reference mode")
         ref_paths = _collect_reference_images(reference_images, collect_mode)
         _log(f"  [鍙傚浘] 鏈€缁堟敹闆嗗埌鍙傝€冨浘璺緞: {ref_paths}")
-        if ref_paths:
-            if progress_callback:
-                progress_callback("自动处理角色图眼睛遮挡...")
-            ref_paths = _cover_reference_image_faces_batch(ref_paths, project_path, plugin_params)
-            _log(f"  [face-cover] final reference paths after face cover: {ref_paths}")
         multipart_ref_paths = []
         if ref_paths and is_schat_fast_9ref:
             multipart_ref_paths = [p for p in ref_paths if p and os.path.isfile(p)][:9]
@@ -1477,11 +1237,6 @@ def generate(context):
         if not download_success:
             raise Exception("PLUGIN_ERROR:::视频下载失败，请检查网络或稍后重试")
 
-        if str(plugin_params.get("watermark_remove_enabled", False)).strip().lower() in ("1", "true", "yes", "on"):
-            if progress_callback:
-                progress_callback("去水印处理中...", 99)
-            video_path = _remove_video_watermark(video_path, plugin_params)
-        
         if progress_callback:
             progress_callback("完成", 100)
         
@@ -1562,56 +1317,6 @@ def handle_action(action, data=None):
             _log(f"[NewAPI Video] 鑾峰彇妯″瀷鍒楄〃澶辫触: {result.get('error')}")
             return {"ok": False, "error": result.get("error", "鏈煡閿欒")}
     
-    elif action == "select_local_file":
-        target = str(data.get("target") or "").strip()
-        title = str(data.get("title") or "Select file")
-        initial_path = str(data.get("initial_path") or "").strip().strip('"')
-        filetypes = data.get("filetypes")
-        if not isinstance(filetypes, list) or not filetypes:
-            filetypes = [("Python scripts", "*.py"), ("Executables", "*.exe"), ("All files", "*.*")]
-
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
-
-            initial_dir = ""
-            initial_file = ""
-            if initial_path:
-                candidate = Path(initial_path)
-                if candidate.is_dir():
-                    initial_dir = str(candidate)
-                else:
-                    initial_dir = str(candidate.parent) if str(candidate.parent) != "." else ""
-                    initial_file = candidate.name
-
-            root = tk.Tk()
-            root.withdraw()
-            try:
-                root.attributes("-topmost", True)
-            except Exception:
-                pass
-            selected = filedialog.askopenfilename(
-                title=title,
-                initialdir=initial_dir or None,
-                initialfile=initial_file or None,
-                filetypes=[tuple(item) for item in filetypes],
-            )
-            root.destroy()
-        except Exception as exc:
-            _log(f"[select-file] failed: {exc}")
-            return {"ok": False, "target": target, "error": str(exc)}
-
-        if not selected:
-            return {"ok": False, "target": target, "cancelled": True}
-
-        if target in {"face_tool_path", "watermark_tool_path"}:
-            try:
-                update_plugin_params(_PLUGIN_FILE, {target: selected})
-            except Exception as save_err:
-                _log(f"[select-file] save failed: {save_err}")
-
-        return {"ok": True, "target": target, "path": selected}
-
     elif action == "check_update":
         result = _get_latest_release(_UPDATE_REPO, int(data.get("timeout", 20) or 20))
         if result.get("ok") and not result.get("has_update"):

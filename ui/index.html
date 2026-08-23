@@ -43,7 +43,7 @@
 </head>
 <body>
   <h3>NewAPI OpenAI 视频插件</h3>
-  <p class="hint-text">兼容 OpenAI Sora / Grok / Seedream 等视频生成接口，支持自定义 API 地址、密钥、参考图上传、人物眼睛遮挡、去水印和 GitHub 自动更新。</p>
+  <p class="hint-text">兼容 OpenAI Sora / Grok / Seedream 等视频生成接口，支持自定义 API 地址、密钥、参考图上传、合规素材和 GitHub 自动更新。</p>
   <hr>
 
   <div class="form-row">
@@ -209,49 +209,6 @@
   </div>
 
   <hr>
-  <h4>角色图眼睛自动处理</h4>
-
-  <div class="form-row">
-    <label class="form-label">启用</label>
-    <div class="form-control">
-      <label class="inline-check">
-        <input type="checkbox" id="faceCoverEnabledInput" checked>
-        <span>上传参考图前自动用黑框遮住检测到的眼睛</span>
-      </label>
-      <div class="hint-text">会生成处理后的临时参考图，不覆盖原角色图；支持正面、侧面、三视图。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">工具路径</label>
-    <div class="form-control">
-      <div class="path-picker">
-        <input type="text" id="faceToolPathInput" value="" placeholder="留空则使用插件内置 face_tool.py">
-        <button type="button" id="btnSelectFaceTool">浏览...</button>
-      </div>
-      <div class="hint-text">可以选择你提供的自动人脸处理工具脚本；留空会使用插件内置版本。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">Python 命令</label>
-    <div class="form-control">
-      <input type="text" id="faceToolPythonInput" value="py -3.10">
-      <div class="hint-text">用于运行 face_tool.py。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">眼睛贴图</label>
-    <div class="form-control">
-      <label class="inline-check">
-        <input type="checkbox" id="facePasteEyesEnabledInput" checked>
-        <span>把原眼睛特效贴到画面空白处</span>
-      </label>
-    </div>
-  </div>
-
-  <hr>
   <h4>GitHub 自动更新</h4>
   <div class="form-row">
     <label class="form-label">版本更新</label>
@@ -259,59 +216,6 @@
       <button type="button" id="btnCheckUpdate">检查更新</button>
       <button type="button" id="btnApplyUpdate" disabled>下载并更新</button>
       <div id="updateStatus" class="hint-text" style="flex-basis:100%;margin-top:2px;"></div>
-    </div>
-  </div>
-
-  <hr>
-  <h4>下载后去水印</h4>
-
-  <div class="form-row">
-    <label class="form-label">启用</label>
-    <div class="form-control">
-      <label class="inline-check">
-        <input type="checkbox" id="watermarkRemoveEnabledInput">
-        <span>下载完成后自动处理固定位置水印</span>
-      </label>
-      <div class="hint-text">使用本地 FFmpeg delogo 工具重新编码视频，适合位置固定的角标或底部水印。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">工具路径</label>
-    <div class="form-control">
-      <div class="path-picker">
-        <input type="text" id="watermarkToolPathInput" value="" placeholder="留空自动扫描插件内置工具">
-        <button type="button" id="btnSelectWatermarkTool">浏览...</button>
-      </div>
-      <div class="hint-text">留空会自动使用插件内置或相邻目录中的 remove_watermark.py。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">遮罩坐标</label>
-    <div class="form-control">
-      <input type="text" id="watermarkMasksInput" placeholder="例如：1040,650,220,50；多个用英文分号分隔">
-      <div class="hint-text">格式：x,y,w,h。多个水印写成 x,y,w,h;x,y,w,h。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">质量 CRF</label>
-    <div class="form-control">
-      <input type="number" id="watermarkCrfInput" value="18" min="14" max="32">
-      <div class="hint-text">越小越清晰、文件越大；建议 18-23。</div>
-    </div>
-  </div>
-
-  <div class="form-row">
-    <label class="form-label">编码速度</label>
-    <div class="form-control">
-      <select id="watermarkPresetSelect">
-        <option value="veryfast">veryfast 更快</option>
-        <option value="fast">fast</option>
-        <option value="medium" selected>medium 默认</option>
-        <option value="slow">slow 更慢更小</option>
-      </select>
     </div>
   </div>
 
@@ -381,17 +285,6 @@
     var imageHostUrlInput = document.getElementById('imageHostUrlInput');
     var imageHostTokenInput = document.getElementById('imageHostTokenInput');
     var imageHostTimeoutInput = document.getElementById('imageHostTimeoutInput');
-    var faceCoverEnabledInput = document.getElementById('faceCoverEnabledInput');
-    var faceToolPathInput = document.getElementById('faceToolPathInput');
-    var btnSelectFaceTool = document.getElementById('btnSelectFaceTool');
-    var faceToolPythonInput = document.getElementById('faceToolPythonInput');
-    var facePasteEyesEnabledInput = document.getElementById('facePasteEyesEnabledInput');
-    var watermarkRemoveEnabledInput = document.getElementById('watermarkRemoveEnabledInput');
-    var watermarkToolPathInput = document.getElementById('watermarkToolPathInput');
-    var btnSelectWatermarkTool = document.getElementById('btnSelectWatermarkTool');
-    var watermarkMasksInput = document.getElementById('watermarkMasksInput');
-    var watermarkCrfInput = document.getElementById('watermarkCrfInput');
-    var watermarkPresetSelect = document.getElementById('watermarkPresetSelect');
     var btnCheckUpdate = document.getElementById('btnCheckUpdate');
     var btnApplyUpdate = document.getElementById('btnApplyUpdate');
     var updateStatus = document.getElementById('updateStatus');
@@ -649,36 +542,6 @@
     imageHostTokenInput.addEventListener('change', function () { PluginSDK.saveParam('image_host_token', imageHostTokenInput.value.trim()); });
     imageHostTokenInput.addEventListener('blur', function () { PluginSDK.saveParam('image_host_token', imageHostTokenInput.value.trim()); });
     imageHostTimeoutInput.addEventListener('change', function () { PluginSDK.saveParam('image_host_timeout', parseInt(imageHostTimeoutInput.value, 10) || 60); });
-    faceCoverEnabledInput.addEventListener('change', function () { PluginSDK.saveParam('face_cover_enabled', faceCoverEnabledInput.checked); });
-    faceToolPathInput.addEventListener('change', function () { PluginSDK.saveParam('face_tool_path', faceToolPathInput.value.trim()); });
-    faceToolPathInput.addEventListener('blur', function () { PluginSDK.saveParam('face_tool_path', faceToolPathInput.value.trim()); });
-    faceToolPythonInput.addEventListener('change', function () { PluginSDK.saveParam('face_tool_python', faceToolPythonInput.value.trim()); });
-    faceToolPythonInput.addEventListener('blur', function () { PluginSDK.saveParam('face_tool_python', faceToolPythonInput.value.trim()); });
-    facePasteEyesEnabledInput.addEventListener('change', function () { PluginSDK.saveParam('face_paste_eyes_enabled', facePasteEyesEnabledInput.checked); });
-    watermarkRemoveEnabledInput.addEventListener('change', function () { PluginSDK.saveParam('watermark_remove_enabled', watermarkRemoveEnabledInput.checked); });
-    watermarkToolPathInput.addEventListener('change', function () { PluginSDK.saveParam('watermark_tool_path', watermarkToolPathInput.value.trim()); });
-    watermarkToolPathInput.addEventListener('blur', function () { PluginSDK.saveParam('watermark_tool_path', watermarkToolPathInput.value.trim()); });
-    watermarkMasksInput.addEventListener('change', function () { PluginSDK.saveParam('watermark_masks', watermarkMasksInput.value.trim()); });
-    watermarkMasksInput.addEventListener('blur', function () { PluginSDK.saveParam('watermark_masks', watermarkMasksInput.value.trim()); });
-    watermarkCrfInput.addEventListener('change', function () { PluginSDK.saveParam('watermark_crf', parseInt(watermarkCrfInput.value, 10) || 18); });
-    watermarkPresetSelect.addEventListener('change', function () { PluginSDK.saveParam('watermark_preset', watermarkPresetSelect.value); });
-
-    btnSelectFaceTool.addEventListener('click', function () {
-      PluginSDK.sendAction('select_local_file', {
-        target: 'face_tool_path',
-        title: '选择自动人脸处理工具脚本',
-        initial_path: faceToolPathInput.value.trim(),
-        filetypes: [['Python 脚本', '*.py'], ['可执行文件', '*.exe'], ['所有文件', '*.*']]
-      });
-    });
-    btnSelectWatermarkTool.addEventListener('click', function () {
-      PluginSDK.sendAction('select_local_file', {
-        target: 'watermark_tool_path',
-        title: '选择水印处理工具脚本',
-        initial_path: watermarkToolPathInput.value.trim(),
-        filetypes: [['Python 脚本', '*.py'], ['可执行文件', '*.exe'], ['所有文件', '*.*']]
-      });
-    });
     btnCheckUpdate.addEventListener('click', function () {
       updateStatus.textContent = UPDATE_TEXT.checking;
       btnApplyUpdate.disabled = true;
@@ -698,16 +561,6 @@
       modelSelect.disabled = false;
       if (data.ok) populateModelDropdown(data.models || [], data.default_model || '', modelSelect.value);
       else setStatus('获取失败：' + (data.error || '未知错误'), 'error');
-    });
-    PluginSDK.onAction('select_local_file_result', function (data) {
-      if (!data || !data.ok || !data.path) return;
-      if (data.target === 'face_tool_path') {
-        faceToolPathInput.value = data.path;
-        PluginSDK.saveParam('face_tool_path', data.path);
-      } else if (data.target === 'watermark_tool_path') {
-        watermarkToolPathInput.value = data.path;
-        PluginSDK.saveParam('watermark_tool_path', data.path);
-      }
     });
     PluginSDK.onAction('check_update_result', function (data) {
       if (!data) return;
@@ -752,15 +605,6 @@
         image_host_url: imageHostUrlInput.value.trim(),
         image_host_token: imageHostTokenInput.value.trim(),
         image_host_timeout: imageHostTimeoutInput.value,
-        face_cover_enabled: faceCoverEnabledInput.checked,
-        face_tool_path: faceToolPathInput.value.trim(),
-        face_tool_python: faceToolPythonInput.value.trim(),
-        face_paste_eyes_enabled: facePasteEyesEnabledInput.checked,
-        watermark_remove_enabled: watermarkRemoveEnabledInput.checked,
-        watermark_tool_path: watermarkToolPathInput.value.trim(),
-        watermark_masks: watermarkMasksInput.value.trim(),
-        watermark_crf: watermarkCrfInput.value,
-        watermark_preset: watermarkPresetSelect.value,
       };
     }
 
@@ -806,15 +650,6 @@
       if (params.image_host_url != null) imageHostUrlInput.value = params.image_host_url;
       if (params.image_host_token != null) imageHostTokenInput.value = params.image_host_token;
       if (params.image_host_timeout != null) imageHostTimeoutInput.value = params.image_host_timeout;
-      if (params.face_cover_enabled != null) faceCoverEnabledInput.checked = params.face_cover_enabled === true || params.face_cover_enabled === 'true' || params.face_cover_enabled === '1';
-      if (params.face_tool_path != null) faceToolPathInput.value = params.face_tool_path;
-      if (params.face_tool_python != null) faceToolPythonInput.value = params.face_tool_python;
-      if (params.face_paste_eyes_enabled != null) facePasteEyesEnabledInput.checked = params.face_paste_eyes_enabled === true || params.face_paste_eyes_enabled === 'true' || params.face_paste_eyes_enabled === '1';
-      if (params.watermark_remove_enabled != null) watermarkRemoveEnabledInput.checked = params.watermark_remove_enabled === true || params.watermark_remove_enabled === 'true' || params.watermark_remove_enabled === '1';
-      if (params.watermark_tool_path != null) watermarkToolPathInput.value = params.watermark_tool_path;
-      if (params.watermark_masks != null) watermarkMasksInput.value = params.watermark_masks;
-      if (params.watermark_crf != null) watermarkCrfInput.value = params.watermark_crf;
-      if (params.watermark_preset) setSelectValue(watermarkPresetSelect, params.watermark_preset);
       applyModelRules();
     }
 
