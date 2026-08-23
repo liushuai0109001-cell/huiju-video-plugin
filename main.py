@@ -220,14 +220,14 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.8"
+_PLUGIN_VERSION = "1.2.9"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
 
 _DEFAULT_PARAMS = {
     "api_key": "",
-    "base_url": "https://api.openai.com",
+    "base_url": "https://huiju.v888.art",
     "model": "sora-2",
     "aspect_ratio": "16:9",
     "duration": 6,
@@ -755,7 +755,7 @@ def generate(context):
         plugin_params, disk_params, host_params = _merge_plugin_params(context.get("plugin_params"))
         
         api_key = str(plugin_params.get("api_key", "")).strip()
-        base_url = str(plugin_params.get("base_url", "https://api.openai.com")).strip().rstrip("/")
+        base_url = str(plugin_params.get("base_url", "https://huiju.v888.art")).strip().rstrip("/")
         model = str(plugin_params.get("model", "sora-2")).strip()
         aspect_ratio = str(plugin_params.get("aspect_ratio", "16:9")).strip()
         duration = int(plugin_params.get("duration", 6))

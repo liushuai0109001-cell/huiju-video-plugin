@@ -15,13 +15,17 @@
     .toggle-eye:hover { color: var(--text-primary); }
     .hint-text { font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.55; }
     .refresh-btn { flex: 0 0 auto !important; padding: 7px 12px !important; }
-    .path-picker { display: flex; gap: 6px; align-items: center; }
-    .path-picker input { flex: 1; min-width: 0; }
-    .path-picker button { flex: 0 0 auto !important; padding: 7px 12px !important; white-space: nowrap; }
     .status-msg { font-size: 11px; margin-top: 6px; min-height: 18px; }
     .status-msg.success { color: var(--success); }
     .status-msg.error { color: var(--danger); }
     .status-msg.loading { color: var(--warning); }
+    .station-notice {
+      margin: 8px 0 14px; padding: 10px 12px;
+      border-left: 4px solid var(--accent); background: var(--bg-secondary);
+      color: var(--text-primary); font-size: 12px; line-height: 1.6;
+    }
+    .station-notice strong { display: block; color: var(--warning); }
+    .station-notice a { color: var(--accent); font-weight: 600; }
     select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
     .inline-check { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 30px; }
     .inline-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
@@ -43,6 +47,10 @@
 </head>
 <body>
   <h3>NewAPI OpenAI 视频插件</h3>
+  <div class="station-notice">
+    <strong>使用前必须先创建 API Key</strong>
+    请前往 <a href="https://huiju.v888.art/" target="_blank" rel="noopener noreferrer">荟聚中转站</a> 注册并创建密钥，然后填写到下方 API Key。
+  </div>
   <p class="hint-text">兼容 OpenAI Sora / Grok / Seedream 等视频生成接口，支持自定义 API 地址、密钥、参考图上传、合规素材和 GitHub 自动更新。</p>
   <hr>
 
@@ -59,7 +67,7 @@
   <div class="form-row">
     <label class="form-label">Base URL</label>
     <div class="form-control">
-      <input type="text" id="baseUrlInput" placeholder="https://api.openai.com">
+      <input type="text" id="baseUrlInput" value="https://huiju.v888.art" placeholder="https://huiju.v888.art">
     </div>
   </div>
 
@@ -611,7 +619,7 @@
     function setParams(params) {
       params = params || {};
       if (params.api_key) apiKeyInput.value = params.api_key;
-      if (params.base_url) baseUrlInput.value = params.base_url;
+      baseUrlInput.value = params.base_url || 'https://huiju.v888.art';
       if (params.model_list) {
         try {
           var cachedModels = JSON.parse(params.model_list);
