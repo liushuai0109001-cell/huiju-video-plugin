@@ -441,6 +441,16 @@ def _normalize_grok_duration(model: str, duration: int) -> int:
 
 def _normalize_xingyao_duration(model: str, duration: int) -> int:
     m = str(model or "").strip().lower()
+    if m == "wan3.0th":
+        # WAN 3.0 Text-to-Video accepts user-selected durations up to 30s.
+        # Keep the requested value intact instead of applying the generic 15s cap.
+        if duration < 1:
+            _log("  [WAN 3.0 TH] duration below 1 second; adjusted to 1")
+            return 1
+        if duration > 30:
+            _log(f"  [WAN 3.0 TH] duration above 30 seconds; adjusted {duration} -> 30")
+            return 30
+        return duration
     if m == "seedance2.5":
         if duration != 14:
             _log(f"  [Seedance 2.5] duration is fixed at 14 seconds; adjusted {duration} -> 14")

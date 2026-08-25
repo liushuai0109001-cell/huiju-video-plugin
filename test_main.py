@@ -10,6 +10,11 @@ import main
 
 
 class MergePluginParamsTest(unittest.TestCase):
+    def test_wan3_th_preserves_duration_up_to_30_seconds(self):
+        self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 29), 29)
+        self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 30), 30)
+        self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 31), 30)
+
     def test_current_request_duration_overrides_saved_duration(self):
         with patch.object(main, "load_plugin_config", return_value={"duration": 6}):
             merged, disk, host = main._merge_plugin_params({"duration": "15"})
