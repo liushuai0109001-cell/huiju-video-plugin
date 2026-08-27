@@ -283,7 +283,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.11"
+_PLUGIN_VERSION = "1.2.12"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -630,7 +630,9 @@ def _fetch_models_from_api(base_url: str, api_key: str, timeout: int = 15) -> di
 # ===================== 鍥惧簥涓婁紶 =====================
 
 def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", timeout: int = 60) -> str:
-    """Upload a local image to the image host and return a public URL."""
+    """Upload a local image, audio, or video file and return a public URL."""
+    if str(image_path or "").lower().startswith(("http://", "https://")):
+        return str(image_path).strip()
     _log(f"  [鍥惧簥] 寮€濮嬩笂浼? {image_path}")
     clean = str(image_path).split("?")[0]
     if not os.path.exists(clean):
@@ -640,8 +642,15 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
 
     try:
         ext = os.path.splitext(clean)[1].lower()
-        mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
-        mime = mime_map.get(ext, "image/png")
+        mime_map = {
+            ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+            ".webp": "image/webp", ".gif": "image/gif",
+            ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
+            ".aac": "audio/aac", ".ogg": "audio/ogg", ".flac": "audio/flac",
+            ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+            ".mkv": "video/x-matroska",
+        }
+        mime = mime_map.get(ext) or mimetypes.guess_type(clean)[0] or "application/octet-stream"
         filename = os.path.basename(clean)
         file_size = os.path.getsize(clean)
         _log(f"  [鍥惧簥] 鏂囦欢澶у皬: {file_size / 1024:.2f} KB, MIME: {mime}")
@@ -720,6 +729,106 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
     except Exception as e:
         _log(f"  [鍥惧簥] 涓婁紶澶辫触: {e}")
         raise
+
+
+_REFERENCE_MEDIA_CONFIG = {
+    "audio": {
+        "extensions": {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"},
+        "keys": (
+            "reference_audios", "reference_audio", "reference_audio_urls", "audio_urls",
+            "audio_refs", "audio_path", "reference_audio_path", "ref_audio_path",
+            "voice_reference_audio", "index_tts_reference_audio", "extra_audios",
+            "audio_paths", "reference_audio_map", "audios", "audio",
+        ),
+    },
+    "video": {
+        "extensions": {".mp4", ".mov", ".webm", ".mkv"},
+        "keys": (
+            "reference_videos", "reference_video", "reference_video_urls", "video_urls",
+            "video_refs", "video_path", "reference_video_path", "current_video",
+            "selected_video", "extra_videos", "video_paths", "reference_video_map",
+            "videos", "video",
+        ),
+    },
+}
+
+
+def _collect_reference_media(context: dict, media_kind: str, max_items: int = 3) -> list:
+    """Collect ordered local paths or public URLs from common Zizi context fields."""
+    config = _REFERENCE_MEDIA_CONFIG[media_kind]
+    extensions = config["extensions"]
+    paths = []
+
+    def append_value(value, enforce_type=True):
+        if value in (None, "") or len(paths) >= max_items:
+            return
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                append_value(item, enforce_type)
+            return
+        if isinstance(value, dict):
+            declared_type = str(value.get("media_type") or value.get("type") or "").lower()
+            if declared_type and media_kind not in declared_type and declared_type not in {"voice", "tts"}:
+                return
+            direct_keys = (
+                "path", f"{media_kind}_path", "url", f"{media_kind}_url",
+                "file", "src", "value",
+            )
+            direct_value = next((value.get(key) for key in direct_keys if value.get(key)), None)
+            if direct_value is not None:
+                append_value(direct_value, enforce_type)
+            else:
+                for nested in value.values():
+                    append_value(nested, enforce_type)
+            return
+        text = str(value).strip()
+        if not text:
+            return
+        is_url = text.lower().startswith(("http://", "https://"))
+        extension = os.path.splitext(text.split("?", 1)[0])[1].lower()
+        if enforce_type and not is_url and extension not in extensions:
+            return
+        if text not in paths:
+            paths.append(text)
+
+    for key in config["keys"]:
+        append_value(context.get(key))
+
+    for item in context.get("reference_items", []) or []:
+        if isinstance(item, dict):
+            declared_type = str(item.get("media_type") or item.get("type") or "").lower()
+            if media_kind in declared_type or (media_kind == "audio" and declared_type in {"voice", "tts"}):
+                append_value(item)
+
+    for container_key in ("reference_media", "media_items", "assets"):
+        container = context.get(container_key)
+        entries = list(container.values()) if isinstance(container, dict) else (container or [])
+        if not isinstance(entries, (list, tuple, set)):
+            continue
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            declared_type = str(item.get("media_type") or item.get("type") or "").lower()
+            if media_kind in declared_type or (media_kind == "audio" and declared_type in {"voice", "tts"}):
+                append_value(item)
+
+    for container_key in ("characters", "character_list", "roles"):
+        container = context.get(container_key)
+        entries = list(container.values()) if isinstance(container, dict) else (container or [])
+        if not isinstance(entries, (list, tuple, set)):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            for key in config["keys"]:
+                append_value(entry.get(key))
+            for item in entry.get("reference_items", []) or []:
+                if isinstance(item, dict):
+                    declared_type = str(item.get("media_type") or item.get("type") or "").lower()
+                    if media_kind in declared_type or (media_kind == "audio" and declared_type in {"voice", "tts"}):
+                        append_value(item)
+
+    return paths[:max_items]
 
 
 
@@ -848,6 +957,7 @@ def generate(context):
         viewer_index = context.get("viewer_index", 1)
         progress_callback = context.get("progress_callback")
         reference_images = context.get("reference_images", {})
+        _log(f"  [context] available keys: {sorted(str(key) for key in context.keys())}")
         
         _log(f"  [鍙傛暟] 瀹夸富 duration: {host_params.get('duration')}")
         _log(f"  [鍙傛暟] 纾佺洏 duration: {disk_params.get('duration')}")
@@ -1068,6 +1178,35 @@ def generate(context):
                         _log(f"  [鍙傚浘] 鑷姩娣诲姞鍗犱綅绗﹀埌 prompt: {placeholders}")
         else:
             _log("  [reference] no reference images, text-to-video mode")
+
+        # Collect audio/video nodes exposed by different Zizi versions, upload
+        # local files to the configured public media host, then use Huiju's
+        # stable downstream contract. NewAPI maps these fields per provider.
+        for media_kind, payload_key, progress_text in (
+            ("audio", "audio_urls", "上传参考音频..."),
+            ("video", "video_urls", "上传参考视频..."),
+        ):
+            media_paths = _collect_reference_media(context, media_kind, max_items=3)
+            _log(f"  [reference-{media_kind}] collected {len(media_paths)} item(s): {media_paths}")
+            if not media_paths:
+                continue
+            if progress_callback:
+                progress_callback(progress_text)
+            media_urls = []
+            for media_path in media_paths:
+                resolved_path = media_path
+                if not str(media_path).lower().startswith(("http://", "https://")):
+                    clean_path = str(media_path).split("?", 1)[0]
+                    if not os.path.isabs(clean_path) and project_path:
+                        project_candidate = os.path.join(project_path, clean_path)
+                        if os.path.exists(project_candidate):
+                            resolved_path = project_candidate
+                media_urls.append(
+                    _upload_image_to_host(resolved_path, image_host_url, image_host_token, max(image_host_timeout, 180))
+                )
+            if media_urls:
+                payload[payload_key] = media_urls
+                _log(f"  [reference-{media_kind}] attached {len(media_urls)} public URL(s) as {payload_key}")
         
         headers = {"Authorization": f"Bearer {api_key}"}
         if not is_schat_fast_9ref:
@@ -1099,6 +1238,8 @@ def generate(context):
         _log(f"    prompt: {payload.get('prompt', '')[:200]}...")
         _log(f"    has_images: {payload.get('images') is not None}")
         _log(f"    images_count: {len(payload.get('images', []))}")
+        _log(f"    audio_urls_count: {len(payload.get('audio_urls', []))}")
+        _log(f"    video_urls_count: {len(payload.get('video_urls', []))}")
         
         if is_schat_fast_9ref:
             opened_files = []
@@ -1335,7 +1476,7 @@ def get_info():
         "description": (
             "OpenAI-compatible video plugin for NewAPI.\n"
             "Supports custom Base URL, API key, and /v1/models model list.\n"
-            "Supports reference image upload through the configured image host."
+            "Supports reference image, audio, and video upload through the configured media host."
         ),
         "version": _PLUGIN_VERSION,
         "author": "",

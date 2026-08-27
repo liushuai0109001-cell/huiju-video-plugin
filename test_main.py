@@ -10,6 +10,35 @@ import main
 
 
 class MergePluginParamsTest(unittest.TestCase):
+    def test_collects_audio_from_top_level_and_character_references(self):
+        context = {
+            "reference_audios": [{"path": "voice-one.mp3"}],
+            "characters": [{
+                "reference_items": [{"path": "voice-two.wav", "media_type": "audio"}],
+            }],
+            "reference_items": [{"path": "ignore.png", "media_type": "image"}],
+        }
+
+        self.assertEqual(
+            main._collect_reference_media(context, "audio"),
+            ["voice-one.mp3", "voice-two.wav"],
+        )
+
+    def test_collects_video_aliases_and_limits_to_three(self):
+        context = {
+            "reference_videos": ["one.mp4", {"url": "https://example.com/two.mp4"}],
+            "video_refs": ["three.mov", "four.webm"],
+        }
+
+        self.assertEqual(
+            main._collect_reference_media(context, "video"),
+            ["one.mp4", "https://example.com/two.mp4", "three.mov"],
+        )
+
+    def test_public_media_url_does_not_upload(self):
+        url = "https://example.com/reference.mp3"
+        self.assertEqual(main._upload_image_to_host(url, "https://host/upload"), url)
+
     def test_wan3_th_preserves_duration_up_to_30_seconds(self):
         self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 29), 29)
         self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 30), 30)
