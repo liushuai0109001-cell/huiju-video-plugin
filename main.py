@@ -20,6 +20,7 @@ import json
 import mimetypes
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -283,7 +284,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.12"
+_PLUGIN_VERSION = "1.2.13"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -728,6 +729,53 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
         return url
     except Exception as e:
         _log(f"  [鍥惧簥] 涓婁紶澶辫触: {e}")
+        raise
+
+
+def _requires_wav_reference_audio(model: str) -> bool:
+    """Return whether this upstream model accepts WAV reference audio only."""
+    return str(model or "").strip().lower() == "seedance-2.0-mini"
+
+
+def _find_ffmpeg_binary() -> str:
+    candidates = [
+        os.environ.get("FFMPEG_BINARY"),
+        plugin_dir / "video-watermark-batch-tool" / "ffmpeg.exe",
+        plugin_dir.parents[3] / "resources" / "ffmpeg" / "bin" / "ffmpeg.exe",
+        shutil.which("ffmpeg"),
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(str(candidate)):
+            return str(candidate)
+    raise Exception("PLUGIN_ERROR:::当前模型仅支持 WAV 参考音频，但未找到 FFmpeg，无法自动转换")
+
+
+def _convert_reference_audio_to_wav(audio_path: str) -> str:
+    """Convert a local reference audio file to PCM WAV and return a temp path."""
+    clean_path = str(audio_path or "").split("?", 1)[0]
+    if os.path.splitext(clean_path)[1].lower() == ".wav":
+        return clean_path
+    if not os.path.isfile(clean_path):
+        raise Exception(f"PLUGIN_ERROR:::参考音频不存在: {clean_path}")
+
+    fd, wav_path = tempfile.mkstemp(prefix="huiju_reference_audio_", suffix=".wav")
+    os.close(fd)
+    command = [
+        _find_ffmpeg_binary(), "-y", "-v", "error", "-i", clean_path,
+        "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", wav_path,
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
+        if result.returncode != 0 or not os.path.isfile(wav_path) or os.path.getsize(wav_path) == 0:
+            detail = (result.stderr or result.stdout or "unknown ffmpeg error").strip()[-500:]
+            raise Exception(f"PLUGIN_ERROR:::参考音频转换 WAV 失败: {detail}")
+        _log(f"  [reference-audio] converted to WAV: {wav_path}")
+        return wav_path
+    except Exception:
+        try:
+            os.unlink(wav_path)
+        except OSError:
+            pass
         raise
 
 
@@ -1201,9 +1249,25 @@ def generate(context):
                         project_candidate = os.path.join(project_path, clean_path)
                         if os.path.exists(project_candidate):
                             resolved_path = project_candidate
-                media_urls.append(
-                    _upload_image_to_host(resolved_path, image_host_url, image_host_token, max(image_host_timeout, 180))
-                )
+                temporary_audio_path = None
+                try:
+                    if media_kind == "audio" and _requires_wav_reference_audio(model):
+                        if str(resolved_path).lower().startswith(("http://", "https://")):
+                            url_path = str(resolved_path).split("?", 1)[0]
+                            if os.path.splitext(url_path)[1].lower() != ".wav":
+                                raise Exception("PLUGIN_ERROR:::seedance-2.0-mini 仅支持 WAV 参考音频，请提供 WAV 公网地址")
+                        elif os.path.splitext(str(resolved_path).split("?", 1)[0])[1].lower() != ".wav":
+                            temporary_audio_path = _convert_reference_audio_to_wav(resolved_path)
+                            resolved_path = temporary_audio_path
+                    media_urls.append(
+                        _upload_image_to_host(resolved_path, image_host_url, image_host_token, max(image_host_timeout, 180))
+                    )
+                finally:
+                    if temporary_audio_path:
+                        try:
+                            os.unlink(temporary_audio_path)
+                        except OSError:
+                            pass
             if media_urls:
                 payload[payload_key] = media_urls
                 _log(f"  [reference-{media_kind}] attached {len(media_urls)} public URL(s) as {payload_key}")

@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -38,6 +39,32 @@ class MergePluginParamsTest(unittest.TestCase):
     def test_public_media_url_does_not_upload(self):
         url = "https://example.com/reference.mp3"
         self.assertEqual(main._upload_image_to_host(url, "https://host/upload"), url)
+
+    def test_seedance_mini_requires_wav_reference_audio(self):
+        self.assertTrue(main._requires_wav_reference_audio("seedance-2.0-mini"))
+        self.assertFalse(main._requires_wav_reference_audio("wan3.0th"))
+
+    def test_existing_wav_does_not_need_conversion(self):
+        self.assertEqual(main._convert_reference_audio_to_wav("voice.wav"), "voice.wav")
+
+    def test_non_wav_audio_is_converted_with_bundled_ffmpeg(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "voice.mp3"
+            source.write_bytes(b"fake mp3")
+
+            def fake_run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b"RIFF converted wav")
+                return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+            with patch.object(main, "_find_ffmpeg_binary", return_value="ffmpeg"), \
+                    patch.object(main.subprocess, "run", side_effect=fake_run):
+                output = main._convert_reference_audio_to_wav(str(source))
+
+            try:
+                self.assertEqual(Path(output).suffix, ".wav")
+                self.assertGreater(Path(output).stat().st_size, 0)
+            finally:
+                Path(output).unlink(missing_ok=True)
 
     def test_wan3_th_preserves_duration_up_to_30_seconds(self):
         self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 29), 29)
