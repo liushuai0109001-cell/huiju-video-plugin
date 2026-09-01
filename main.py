@@ -284,7 +284,7 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.13"
+_PLUGIN_VERSION = "1.2.14"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
 # ===================== 榛樿鍙傛暟 =====================
@@ -302,7 +302,8 @@ _DEFAULT_PARAMS = {
     "timeout": 900,
     "max_poll_attempts": 300,
     "poll_interval": 10,
-    "reference_mode": "first_frame",  # multi_image:澶氬浘妯″紡, first_frame:棣栧抚鍥炬ā寮?    "resolution": "720p",  # 480p / 720p
+    "reference_mode": "first_frame",
+    "resolution": "720p",  # 480p / 720p / 1080p
     "compliance_enabled": False,
     "compliance_mode": "colored-pencil",
     # 鍥惧簥閰嶇疆锛堢敤浜庢妸鏈湴鍥剧墖杞垚鍏綉 URL 渚涗笂娓镐娇鐢級
@@ -442,14 +443,14 @@ def _normalize_grok_duration(model: str, duration: int) -> int:
 
 def _normalize_xingyao_duration(model: str, duration: int) -> int:
     m = str(model or "").strip().lower()
-    if m == "wan3.0th":
+    if m in {"wan3.0th", "wan-3.0"}:
         # WAN 3.0 Text-to-Video accepts user-selected durations up to 30s.
         # Keep the requested value intact instead of applying the generic 15s cap.
         if duration < 1:
-            _log("  [WAN 3.0 TH] duration below 1 second; adjusted to 1")
+            _log("  [WAN 3.0] duration below 1 second; adjusted to 1")
             return 1
         if duration > 30:
-            _log(f"  [WAN 3.0 TH] duration above 30 seconds; adjusted {duration} -> 30")
+            _log(f"  [WAN 3.0] duration above 30 seconds; adjusted {duration} -> 30")
             return 30
         return duration
     if m == "seedance2.5":
@@ -524,11 +525,38 @@ def _normalize_seedream_aspect_ratio(aspect_ratio: str) -> str:
     return mapped
 
 
+def _normalize_meaicc_aspect_ratio(aspect_ratio: str) -> str:
+    """Normalize ratios accepted by the channel 40 wan-3.0 upstream."""
+    ratio = str(aspect_ratio or "16:9").strip().replace("：", ":")
+    supported = {"16:9", "4:3", "1:1", "3:4", "9:16", "adaptive"}
+    if ratio in supported:
+        return ratio
+    mapped = {
+        "21:9": "16:9",
+        "3:2": "4:3",
+        "2:3": "3:4",
+        "1920x1080": "16:9",
+        "1280x720": "16:9",
+        "1080x1920": "9:16",
+        "720x1280": "9:16",
+    }.get(ratio, "16:9")
+    _log(f"  [WAN 3.0] unsupported ratio {ratio!r}; adjusted to {mapped}")
+    return mapped
+
+
 def _ratio_to_video_size(aspect_ratio: str, resolution: str) -> str:
     """Convert aspect ratio and resolution to video size."""
     ratio = str(aspect_ratio or "16:9").strip()
     res = str(resolution or "720p").strip().lower()
-    if res == "480p":
+    if res == "1080p":
+        mapping = {
+            "16:9": "1920x1080",
+            "9:16": "1080x1920",
+            "1:1": "1080x1080",
+            "4:3": "1440x1080",
+            "3:4": "1080x1440",
+        }
+    elif res == "480p":
         mapping = {
             "16:9": "854x480",
             "9:16": "480x854",
@@ -550,7 +578,8 @@ def _ratio_to_video_size(aspect_ratio: str, resolution: str) -> str:
             "3:2": "1152x768",
             "2:3": "768x1152",
         }
-    size = mapping.get(ratio, "1280x720")
+    default_size = "1920x1080" if res == "1080p" else "854x480" if res == "480p" else "1280x720"
+    size = mapping.get(ratio, default_size)
     if ratio not in mapping:
         _log(f"  [NewAPI] 鏈瘑鍒楂樻瘮 {ratio}锛宻ize 宸蹭娇鐢ㄩ粯璁?{size}")
     return size
@@ -1005,6 +1034,8 @@ def generate(context):
         viewer_index = context.get("viewer_index", 1)
         progress_callback = context.get("progress_callback")
         reference_images = context.get("reference_images", {})
+        if model.lower() == "wan-3.0":
+            aspect_ratio = _normalize_meaicc_aspect_ratio(aspect_ratio)
         _log(f"  [context] available keys: {sorted(str(key) for key in context.keys())}")
         
         _log(f"  [鍙傛暟] 瀹夸富 duration: {host_params.get('duration')}")
@@ -1097,7 +1128,7 @@ def generate(context):
             "duration": duration,
             "size": _ratio_to_video_size(aspect_ratio, resolution),
             "aspect_ratio": aspect_ratio,        # 鐩存帴浼犳瘮渚嬪瓧绗︿覆
-            "resolution": resolution,            # 480p / 720p
+            "resolution": resolution,            # 480p / 720p / 1080p
         }
         if is_schat_fast_9ref:
             payload = {

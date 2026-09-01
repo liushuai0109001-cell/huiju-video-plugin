@@ -71,6 +71,20 @@ class MergePluginParamsTest(unittest.TestCase):
         self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 30), 30)
         self.assertEqual(main._normalize_xingyao_duration("wan3.0th", 31), 30)
 
+    def test_wan_dash_3_preserves_duration_up_to_30_seconds(self):
+        self.assertEqual(main._normalize_xingyao_duration("wan-3.0", 30), 30)
+
+    def test_wan_dash_3_normalizes_unsupported_ratios(self):
+        self.assertEqual(main._normalize_meaicc_aspect_ratio("21:9"), "16:9")
+        self.assertEqual(main._normalize_meaicc_aspect_ratio("3:2"), "4:3")
+        self.assertEqual(main._normalize_meaicc_aspect_ratio("2:3"), "3:4")
+        self.assertEqual(main._normalize_meaicc_aspect_ratio("9:16"), "9:16")
+
+    def test_1080p_video_sizes(self):
+        self.assertEqual(main._ratio_to_video_size("16:9", "1080p"), "1920x1080")
+        self.assertEqual(main._ratio_to_video_size("9:16", "1080p"), "1080x1920")
+        self.assertEqual(main._ratio_to_video_size("4:3", "1080p"), "1440x1080")
+
     def test_current_request_duration_overrides_saved_duration(self):
         with patch.object(main, "load_plugin_config", return_value={"duration": 6}):
             merged, disk, host = main._merge_plugin_params({"duration": "15"})
