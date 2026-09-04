@@ -1,24 +1,24 @@
 ﻿"""
-NewAPI OpenAI 鍏煎瑙嗛鐢熸垚鎻掍欢
-鏀寔鑷畾涔?Base URL 鍜?API Key锛岃嚜鍔ㄤ粠 /v1/models 鑾峰彇鍙敤妯″瀷鍒楄〃銆?
+NewAPI OpenAI 兼容视频生成插件
+Supports custom Base URL and API key, and loads models from /v1/models.
 
-API 娴佺▼锛圤penAI Sora 鏍煎紡锛?
-  1. POST /v1/videos        鈫?鎻愪氦鐢熸垚浠诲姟锛岃幏寰?task_id
-  2. GET  /v1/videos/{id}    鈫?杞浠诲姟鐘舵€侊紙completed/failed锛?
-  3. GET  /v1/videos/{id}/content 鈫?涓嬭浇瑙嗛鏂囦欢
+API flow (OpenAI Videos compatible):
+  1. POST /v1/videos to submit a task and obtain its task ID.
+  2. GET /v1/videos/{id} to poll queued/processing/completed/failed status.
+  3. GET /v1/videos/{id}/content to download the completed video.
 
-鎻掍欢鐩綍缁撴瀯锛?
+Plugin structure:
   newapi_openai/
-  鈹溾攢鈹€ main.py          鈫?鐢熸垚閫昏緫 + 妯″瀷鑾峰彇
-  鈹溾攢鈹€ ui/
-  鈹?  鈹斺攢鈹€ index.html   鈫?鍓嶇璁剧疆鐣岄潰锛坕frame 鍔犺浇锛?
-  鈹斺攢鈹€ info.json        鈫?鎻掍欢鍏冧俊鎭?
+  - main.py: generation logic and model discovery
+  - ui/index.html: settings interface
+  - info.json: plugin metadata
 """
 
 import base64
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -284,10 +284,10 @@ def _merge_plugin_params(context_params):
 
 
 _PLUGIN_FILE = __file__
-_PLUGIN_VERSION = "1.2.14"
+_PLUGIN_VERSION = "1.2.15"
 _UPDATE_REPO = "liushuai0109001-cell/huiju-video-plugin"
 
-# ===================== 榛樿鍙傛暟 =====================
+# ===================== 默认参数 =====================
 
 _DEFAULT_PARAMS = {
     "api_key": "",
@@ -306,7 +306,7 @@ _DEFAULT_PARAMS = {
     "resolution": "720p",  # 480p / 720p / 1080p
     "compliance_enabled": False,
     "compliance_mode": "colored-pencil",
-    # 鍥惧簥閰嶇疆锛堢敤浜庢妸鏈湴鍥剧墖杞垚鍏綉 URL 渚涗笂娓镐娇鐢級
+    # 图床配置（用于把本地图片转成公网 URL 供上游使用）
     "image_host_url": "https://huiju.v888.art/upload",
     "image_host_token": "huiju-upload-2026",
     "image_host_timeout": 60,
@@ -315,7 +315,7 @@ _DEFAULT_PARAMS = {
 }
 
 
-# ===================== 姣斾緥鍒板昂瀵告槧灏?=====================
+# ===================== Aspect ratio and size mapping =====================
 
 _ASPECT_RATIO_SIZE_MAP = {
     "16:9":  (1280, 720),
@@ -346,7 +346,7 @@ _SEEDREAM_ALLOWED_DURATIONS = {
 }
 
 
-# ===================== 宸ュ叿鍑芥暟 =====================
+# ===================== 工具函数 =====================
 
 def _ratio_to_size(aspect_ratio: str):
     """Convert aspect ratio to width and height."""
@@ -354,7 +354,7 @@ def _ratio_to_size(aspect_ratio: str):
     if ratio in _ASPECT_RATIO_SIZE_MAP:
         w, h = _ASPECT_RATIO_SIZE_MAP[ratio]
         return w, h
-    # 灏濊瘯瑙ｆ瀽 "W:H" 鏍煎紡
+    # 尝试解析 "W:H" 格式
     try:
         parts = ratio.split(":")
         if len(parts) == 2:
@@ -378,13 +378,13 @@ def _normalize_seedream_duration(model: str, duration: int) -> int:
     if allowed:
         chosen = min(allowed, key=lambda x: abs(x - duration))
         if chosen != duration:
-            _log(f"  [Seedream] 褰撳墠妯″瀷浠呮敮鎸?{allowed} 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 {chosen}")
+            _log(f"  [Seedream] 当前模型仅支持 {allowed} 秒，已自动调整为 {chosen}")
         return chosen
     if duration < 5:
-        _log("  [Seedream] 鏃堕暱灏忎簬 5 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 5")
+        _log("  [Seedream] 时长小于 5 秒，已自动调整为 5")
         return 5
     if duration > 15:
-        _log("  [Seedream] 鏃堕暱澶т簬 15 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 15")
+        _log("  [Seedream] 时长大于 15 秒，已自动调整为 15")
         return 15
     return duration
 
@@ -413,6 +413,10 @@ def _is_chre_seedance_model(model: str) -> bool:
     }
 
 
+def _is_fixed_sd25_model(model: str) -> bool:
+    return str(model or "").strip().lower() == "sd2.5"
+
+
 _CHRE_COMPLIANCE_MODES = {
     "colored-pencil",
     "watercolor",
@@ -437,7 +441,7 @@ def _normalize_grok_duration(model: str, duration: int) -> int:
         allowed = (6, 10)
     chosen = min(allowed, key=lambda x: abs(x - duration))
     if chosen != duration:
-        _log(f"  [Grok] 褰撳墠妯″瀷浠呮敮鎸?{allowed} 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 {chosen}")
+        _log(f"  [Grok] 当前模型仅支持 {allowed} 秒，已自动调整为 {chosen}")
     return chosen
 
 
@@ -469,42 +473,42 @@ def _normalize_xingyao_duration(model: str, duration: int) -> int:
         allowed = (4, 8, 12)
         chosen = min(allowed, key=lambda x: abs(x - duration))
         if chosen != duration:
-            _log(f"  [Xingyao] sora2 浠呮敮鎸?{allowed} 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 {chosen}")
+            _log(f"  [Xingyao] sora2 仅支持 {allowed} 秒，已自动调整为 {chosen}")
         return chosen
     if m == "veo-fast":
         allowed = (4, 6, 8)
         chosen = min(allowed, key=lambda x: abs(x - duration))
         if chosen != duration:
-            _log(f"  [Xingyao] veo-fast 浠呮敮鎸?{allowed} 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 {chosen}")
+            _log(f"  [Xingyao] veo-fast 仅支持 {allowed} 秒，已自动调整为 {chosen}")
         return chosen
     if m in {"xinqi-2.0-fast-v5", "xinqi-2.0-v5"}:
         if duration < 10:
-            _log("  [Xingyao] xinqi v5 鏃堕暱灏忎簬 10 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 10")
+            _log("  [Xingyao] xinqi v5 时长小于 10 秒，已自动调整为 10")
             return 10
         if duration > 15:
-            _log("  [Xingyao] xinqi v5 鏃堕暱澶т簬 15 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 15")
+            _log("  [Xingyao] xinqi v5 时长大于 15 秒，已自动调整为 15")
             return 15
         return duration
     if m == "pl-2.0-720p-v1":
         allowed = (5, 10, 15)
         chosen = min(allowed, key=lambda x: abs(x - duration))
         if chosen != duration:
-            _log(f"  [Xingyao] PL-2.0-720p-v1 浠呮敮鎸?{allowed} 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 {chosen}")
+            _log(f"  [Xingyao] PL-2.0-720p-v1 仅支持 {allowed} 秒，已自动调整为 {chosen}")
         return chosen
-    if m.startswith("瀹?sd-2.0-"):
+    if m.startswith("官方sd-2.0-"):
         if duration < 4:
-            _log("  [Xingyao] 瀹?sd-2.0 绯诲垪鏃堕暱灏忎簬 4 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 4")
+            _log("  [Xingyao] 官方 sd-2.0 系列时长小于 4 秒，已自动调整为 4")
             return 4
         if duration > 15:
-            _log("  [Xingyao] 瀹?sd-2.0 绯诲垪鏃堕暱澶т簬 15 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 15")
+            _log("  [Xingyao] 官方 sd-2.0 系列时长大于 15 秒，已自动调整为 15")
             return 15
         return duration
     if m == "xinqi-2.0-fast-v4":
         if duration < 5:
-            _log("  [Xingyao] xinqi-2.0-fast-v4 鏃堕暱灏忎簬 5 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 5")
+            _log("  [Xingyao] xinqi-2.0-fast-v4 时长小于 5 秒，已自动调整为 5")
             return 5
         if duration > 15:
-            _log("  [Xingyao] 鏃堕暱澶т簬 15 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 15")
+            _log("  [Xingyao] 时长大于 15 秒，已自动调整为 15")
             return 15
         return duration
     if duration < 1:
@@ -521,7 +525,7 @@ def _normalize_seedream_aspect_ratio(aspect_ratio: str) -> str:
     if ratio in supported:
         return ratio
     mapped = "9:16" if ratio == "2:3" else "16:9"
-    _log(f"  [Seedream] 瀹介珮姣?{ratio} 鍙兘涓嶆敮鎸侊紝宸茶嚜鍔ㄨ皟鏁翠负 {mapped}")
+    _log(f"  [Seedream] 宽高比 {ratio} 可能不支持，已自动调整为 {mapped}")
     return mapped
 
 
@@ -581,7 +585,7 @@ def _ratio_to_video_size(aspect_ratio: str, resolution: str) -> str:
     default_size = "1920x1080" if res == "1080p" else "854x480" if res == "480p" else "1280x720"
     size = mapping.get(ratio, default_size)
     if ratio not in mapping:
-        _log(f"  [NewAPI] 鏈瘑鍒楂樻瘮 {ratio}锛宻ize 宸蹭娇鐢ㄩ粯璁?{size}")
+        _log(f"  [NewAPI] 未识别宽高比 {ratio}，使用默认尺寸 {size}")
     return size
 
 
@@ -613,14 +617,46 @@ def _seedream_result_url(status_data: dict) -> str:
 def _seedream_failure_reason(status_data: dict) -> str:
     data = status_data.get("data") if isinstance(status_data, dict) else None
     if isinstance(data, dict):
-        return data.get("fail_reason") or data.get("message") or status_data.get("message") or "浠诲姟澶辫触"
+        return data.get("fail_reason") or data.get("message") or status_data.get("message") or "任务失败"
     err = status_data.get("error")
     if isinstance(err, dict):
-        return err.get("message") or "浠诲姟澶辫触"
-    return str(err) if err else status_data.get("message", "浠诲姟澶辫触")
+        return err.get("message") or "任务失败"
+    return str(err) if err else status_data.get("message", "任务失败")
 
 
-# ===================== 妯″瀷鍒楄〃鑾峰彇 =====================
+def _task_failure_reason(status_data: dict) -> str:
+    """Read standard errors and legacy Huiju responses without losing detail."""
+    if not isinstance(status_data, dict):
+        return str(status_data) if status_data else "任务失败"
+    error_info = status_data.get("error")
+    if isinstance(error_info, dict):
+        for key in ("message", "detail", "code"):
+            value = error_info.get(key)
+            if value:
+                return str(value)
+    elif error_info:
+        return str(error_info)
+    for key in ("fail_reason", "message", "reason"):
+        if status_data.get(key):
+            return str(status_data[key])
+    nested = status_data.get("data")
+    if isinstance(nested, dict):
+        nested_reason = _task_failure_reason(nested)
+        if nested_reason != "任务失败":
+            return nested_reason
+    # Older Huiju builds accidentally returned the failure reason in `url`.
+    legacy_url = status_data.get("url")
+    if legacy_url and not str(legacy_url).lower().startswith(("http://", "https://")):
+        return str(legacy_url)
+    metadata = status_data.get("metadata")
+    if isinstance(metadata, dict):
+        legacy_url = metadata.get("url")
+        if legacy_url and not str(legacy_url).lower().startswith(("http://", "https://")):
+            return str(legacy_url)
+    return "任务失败"
+
+
+# ===================== 模型列表获取 =====================
 
 def _fetch_models_from_api(base_url: str, api_key: str, timeout: int = 15) -> dict:
     """Fetch model list from an OpenAI-compatible /v1/models endpoint."""
@@ -657,13 +693,13 @@ def _fetch_models_from_api(base_url: str, api_key: str, timeout: int = 15) -> di
         return {"ok": False, "error": f"Failed to fetch model list: {str(e)}"}
 
 
-# ===================== 鍥惧簥涓婁紶 =====================
+# ===================== 图床上传 =====================
 
 def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", timeout: int = 60) -> str:
     """Upload a local image, audio, or video file and return a public URL."""
     if str(image_path or "").lower().startswith(("http://", "https://")):
         return str(image_path).strip()
-    _log(f"  [鍥惧簥] 寮€濮嬩笂浼? {image_path}")
+    _log(f"  [图床] 开始上传: {image_path}")
     clean = str(image_path).split("?")[0]
     if not os.path.exists(clean):
         raise Exception(f"PLUGIN_ERROR:::图片文件不存在: {clean}")
@@ -683,7 +719,7 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
         mime = mime_map.get(ext) or mimetypes.guess_type(clean)[0] or "application/octet-stream"
         filename = os.path.basename(clean)
         file_size = os.path.getsize(clean)
-        _log(f"  [鍥惧簥] 鏂囦欢澶у皬: {file_size / 1024:.2f} KB, MIME: {mime}")
+        _log(f"  [图床] 文件大小: {file_size / 1024:.2f} KB, MIME: {mime}")
 
         headers = {}
         if host_token:
@@ -717,7 +753,7 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
                 _log(f"  [image-host] transient upload error: {exc}; retrying in {delay}s ({attempt}/{max_attempts})")
                 time.sleep(delay)
 
-        _log(f"  [鍥惧簥] 涓婁紶鍝嶅簲鐘舵€? {resp.status_code}")
+        _log(f"  [图床] 上传响应状态: {resp.status_code}")
         if resp.status_code != 200:
             try:
                 detail = resp.json()
@@ -728,14 +764,14 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
         try:
             data = resp.json()
         except Exception:
-            # 濡傛灉鎺ュ彛杩斿洖绾枃鏈?URL锛岀洿鎺ヤ娇鐢?
+            # Some hosts return a plain URL instead of JSON.
             url = resp.text.strip()
             if url.startswith("http"):
-                _log(f"  [鍥惧簥] 杩斿洖鏂囨湰 URL: {url}")
+                _log(f"  [图床] 返回文本 URL: {url}")
                 return url
             raise Exception(f"PLUGIN_ERROR:::图床返回非 URL 文本: {resp.text[:200]}")
 
-        # 灏濊瘯澶氱甯歌杩斿洖瀛楁
+        # 尝试多种常见返回字段
         url = None
         for key in ("url", "image_url", "file_url", "public_url", "link", "data"):
             val = data.get(key)
@@ -743,7 +779,7 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
                 url = val
                 break
         if not url:
-            # 鏈変簺杩斿洖 {data: {url: ...}}
+            # 有些返回 {data: {url: ...}}
             nested = data.get("data")
             if isinstance(nested, dict):
                 for key in ("url", "image_url", "file_url", "public_url", "link"):
@@ -754,10 +790,10 @@ def _upload_image_to_host(image_path: str, host_url: str, host_token: str = "", 
         if not url:
             raise Exception(f"PLUGIN_ERROR:::图床响应中未找到 URL: {json.dumps(data, ensure_ascii=False)[:300]}")
 
-        _log(f"  [鍥惧簥] 涓婁紶鎴愬姛锛孶RL: {url}")
+        _log(f"  [图床] 上传成功，URL: {url}")
         return url
     except Exception as e:
-        _log(f"  [鍥惧簥] 涓婁紶澶辫触: {e}")
+        _log(f"  [图床] 上传失败: {e}")
         raise
 
 
@@ -911,101 +947,163 @@ def _collect_reference_media(context: dict, media_kind: str, max_items: int = 3)
 
 def _read_image_as_base64(image_path: str) -> str:
     """Read an image and convert it to a base64 data URI."""
-    _log(f"  [鍙傚浘] 璇诲彇鍥剧墖: {image_path}")
+    _log(f"  [参图] 读取图片: {image_path}")
     if not image_path:
-        _log(f"  [鍙傚浘] -> 璺緞涓虹┖")
+        _log(f"  [参图] -> 路径为空")
         return None
     clean = str(image_path).split("?")[0]
-    _log(f"  [鍙傚浘] -> 娓呯悊鍚庤矾寰? {clean}")
+    _log(f"  [参图] 清理后的路径: {clean}")
     if not os.path.exists(clean):
-        _log(f"  [鍙傚浘] -> 鏂囦欢涓嶅瓨鍦? {clean}")
+        _log(f"  [参图] 文件不存在: {clean}")
         return None
     try:
         ext = os.path.splitext(clean)[1].lower()
         mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
         mime = mime_map.get(ext, "image/png")
         file_size = os.path.getsize(clean)
-        _log(f"  [鍙傚浘] -> 鏂囦欢澶у皬: {file_size / 1024:.2f} KB, MIME: {mime}")
+        _log(f"  [参图] -> 文件大小: {file_size / 1024:.2f} KB, MIME: {mime}")
         with open(clean, "rb") as f:
             b64 = base64.b64encode(f.read()).decode("utf-8")
         b64_len = len(b64)
-        _log(f"  [鍙傚浘] -> Base64 缂栫爜鎴愬姛: {b64_len} 瀛楃 ({b64_len / 1024:.2f} KB)")
+        _log(f"  [参图] -> Base64 编码成功: {b64_len} 字符 ({b64_len / 1024:.2f} KB)")
         return f"data:{mime};base64,{b64}"
     except Exception as e:
-        _log(f"[鍙傚浘] 璇诲彇鍥剧墖澶辫触 {clean}: {e}")
+        _log(f"[参图] 读取图片失败 {clean}: {e}")
         return None
 
 
-def _collect_reference_images(reference_images: dict, mode: str = "multi_image") -> list:
-    """Collect reference image paths according to reference mode."""
-    _log(f"  [鍙傚浘] 寮€濮嬫敹闆嗗弬鑰冨浘鐗?.. 妯″紡: {mode}")
-    _log(f"  [鍙傚浘] 杈撳叆鏁版嵁: {reference_images}")
+_REFERENCE_MAP_KEYS = (
+    "参考图片MAP", "参考图片Map", "参考图片map", "reference_image_map",
+    "reference_images", "images", "image_paths", "reference_image_paths",
+    "input_images", "refs",
+)
+_FIRST_FRAME_KEYS = (
+    "首帧", "首帧图", "first_frame", "first_frame_path", "first_frame_image",
+)
+_LAST_FRAME_KEYS = (
+    "尾帧", "尾帧图", "end_frame", "end_frame_path", "last_frame",
+    "last_frame_path", "last_frame_image",
+)
+
+
+def _first_present(mapping: dict, keys: tuple):
+    for key in keys:
+        value = mapping.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _normalize_reference_images(raw, context: dict) -> dict:
+    """Normalize reference aliases from different Zizi releases."""
+    canonical = {"参考图片MAP": {}, "首帧": None, "尾帧": None}
+    if isinstance(raw, (list, tuple)):
+        canonical["参考图片MAP"] = {i + 1: value for i, value in enumerate(raw)}
+    elif isinstance(raw, str):
+        canonical["参考图片MAP"] = {1: raw}
+    elif isinstance(raw, dict):
+        if raw and all(isinstance(key, int) or str(key).isdigit() for key in raw):
+            source_map = raw
+        else:
+            source_map = _first_present(raw, _REFERENCE_MAP_KEYS) or {}
+        if isinstance(source_map, (list, tuple)):
+            source_map = {i + 1: value for i, value in enumerate(source_map)}
+        elif isinstance(source_map, str):
+            source_map = {1: source_map}
+        if isinstance(source_map, dict):
+            canonical["参考图片MAP"] = {
+                (int(key) if str(key).isdigit() else key): value
+                for key, value in source_map.items()
+            }
+        canonical["首帧"] = _first_present(raw, _FIRST_FRAME_KEYS)
+        canonical["尾帧"] = _first_present(raw, _LAST_FRAME_KEYS)
+    canonical["首帧"] = _first_present(context, _FIRST_FRAME_KEYS) or canonical["首帧"]
+    canonical["尾帧"] = _first_present(context, _LAST_FRAME_KEYS) or canonical["尾帧"]
+    return canonical
+
+
+def _resolve_reference(value, project_path: str = "") -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if text.lower().startswith(("http://", "https://")):
+        return text
+    clean = text.split("?", 1)[0]
+    if os.path.isfile(clean):
+        return clean
+    if project_path and not os.path.isabs(clean):
+        candidate = os.path.join(project_path, clean)
+        if os.path.isfile(candidate):
+            return candidate
+    return ""
+
+
+def _reference_sort_key(item):
+    key = item[0]
+    return (0, int(key)) if str(key).isdigit() else (1, str(key))
+
+
+def _collect_reference_images(reference_images: dict, mode: str = "multi_image", project_path: str = "") -> list:
+    """Collect valid local paths or public URLs in stable order."""
+    _log(f"  [参图] 开始收集参考图片，模式: {mode}")
     paths = []
-    
+
+    def add(value):
+        resolved = _resolve_reference(value, project_path)
+        if resolved and resolved not in paths:
+            paths.append(resolved)
+            _log(f"  [参图] 已加入: {resolved}")
+        elif value:
+            _log(f"  [参图] 跳过无效或重复素材: {value}")
+
+    ref_map = reference_images.get("参考图片MAP", {}) if isinstance(reference_images, dict) else {}
     if mode == "first_frame":
-        # 棣栧抚鍥炬ā寮忥細鍙彇棣栧抚鎴栧弬鑰冨浘鐗嘙AP涓殑绗?寮?
-        _log(f"  [鍙傚浘] 棣栧抚鍥炬ā寮忥細鍙敹闆嗛甯у浘")
-        # 浼樺厛鍙栭甯?
-        first = reference_images.get("棣栧抚")
-        if first and os.path.exists(str(first).split("?")[0]):
-            paths.append(str(first).split("?")[0])
-            _log(f"  [鍙傚浘]   棣栧抚宸插姞鍏? {paths[0]}")
-        else:
-            # 娌℃湁棣栧抚锛屽彇鍙傝€冨浘鐗嘙AP绗?寮?
-            ref_map = reference_images.get("鍙傝€冨浘鐗嘙AP", {})
-            if isinstance(ref_map, dict) and 1 in ref_map:
-                p = ref_map[1]
-                if p and os.path.exists(str(p).split("?")[0]):
-                    paths.append(str(p).split("?")[0])
-                    _log(f"  [鍙傚浘]   MAP[1] 宸插姞鍏? {paths[0]}")
-            # 灏濊瘯瀛楃涓查敭 "1"
-            elif isinstance(ref_map, dict) and "1" in ref_map:
-                p = ref_map["1"]
-                if p and os.path.exists(str(p).split("?")[0]):
-                    paths.append(str(p).split("?")[0])
-                    _log(f"  [鍙傚浘]   MAP['1'] 宸插姞鍏? {paths[0]}")
-        if not paths:
-            _log(f"  [鍙傚浘] 棣栧抚鍥炬ā寮忥細鏈壘鍒颁换浣曢甯у浘")
-    
+        add(reference_images.get("首帧") if isinstance(reference_images, dict) else None)
+        if not paths and isinstance(ref_map, dict):
+            for _, value in sorted(ref_map.items(), key=_reference_sort_key):
+                add(value)
+                if paths:
+                    break
     else:
-        # 澶氬浘妯″紡锛氭敹闆嗘墍鏈夊弬鑰冨浘鐗囷紙鍙傝€冨浘鐗嘙AP + 棣栧抚 + 灏惧抚锛?
-        _log("  [reference] multi-image mode: collecting all reference images")
-        ref_map = reference_images.get("鍙傝€冨浘鐗嘙AP", {})
         if isinstance(ref_map, dict):
-            _log(f"  [鍙傚浘] 鍙傝€冨浘鐗嘙AP 閿? {list(ref_map.keys())}")
-            for idx in sorted(ref_map.keys()):
-                p = ref_map[idx]
-                _log(f"  [鍙傚浘]   MAP[{idx}]: {p}")
-                if p and os.path.exists(str(p).split("?")[0]):
-                    paths.append(str(p).split("?")[0])
-                    _log(f"  [鍙傚浘]     -> 鏈夋晥锛屽凡鍔犲叆")
-                else:
-                    _log(f"  [鍙傚浘]     -> 鏃犳晥鎴栨枃浠朵笉瀛樺湪")
-        else:
-            _log(f"  [鍙傚浘] 鍙傝€冨浘鐗嘙AP 涓嶆槸瀛楀吀: {type(ref_map)}")
-        for key in ["棣栧抚", "灏惧抚"]:
-            p = reference_images.get(key)
-            _log(f"  [鍙傚浘] {key}: {p}")
-            if p and os.path.exists(str(p).split("?")[0]) and str(p).split("?")[0] not in paths:
-                paths.append(str(p).split("?")[0])
-                _log(f"  [鍙傚浘]   -> 鏈夋晥锛屽凡鍔犲叆")
-            elif p:
-                _log("  [reference] skipped: file missing or duplicated")
-    
-    _log(f"  [鍙傚浘] 鏀堕泦瀹屾垚: {len(paths)} 寮? {paths}")
+            for _, value in sorted(ref_map.items(), key=_reference_sort_key):
+                add(value)
+        if isinstance(reference_images, dict):
+            add(reference_images.get("首帧"))
+            add(reference_images.get("尾帧"))
+    _log(f"  [参图] 收集完成: {len(paths)} 张 {paths}")
     return paths
 
 
-# ===================== 鏍稿績鐢熸垚 =====================
+_REFERENCE_PROMPT_RE = re.compile(
+    r"(?:@(?:图片|图|image)\s*\d+|<IMAGE_\d+>|\[@image\d+\]|首帧|尾帧)",
+    re.IGNORECASE,
+)
+
+
+def _prompt_requires_reference(prompt: str) -> bool:
+    return bool(_REFERENCE_PROMPT_RE.search(str(prompt or "")))
+
+
+def _attach_reference_image_fields(payload: dict, image_urls: list, include_image_refs: bool = False) -> None:
+    """Attach the stable downstream aliases before provider-specific adaptation."""
+    payload["reference_images"] = list(image_urls)
+    payload["images"] = list(image_urls)
+    payload["image_urls"] = list(image_urls)
+    if include_image_refs:
+        payload["image_refs"] = list(image_urls)
+
+
+# ===================== 核心生成 =====================
 
 def generate(context):
     """
-    鎻掍欢涓诲嚱鏁帮細璋冪敤 OpenAI Sora 鍏煎 API 鐢熸垚瑙嗛銆?
+    Main entry point for the OpenAI Videos-compatible generation flow.
     
-    娴佺▼:
-      1. POST /v1/videos      鈫?鎻愪氦浠诲姟
-      2. GET  /v1/videos/{id}  鈫?杞鐘舵€?
-      3. 涓嬭浇瑙嗛鏂囦欢
+    流程:
+      1. POST /v1/videos to submit.
+      2. GET /v1/videos/{id} to poll.
+      3. 下载视频文件
     """
     _log("=" * 80)
     _log("[NewAPI Video] start generation")
@@ -1033,49 +1131,35 @@ def generate(context):
         project_path = context.get("project_path", ".")
         viewer_index = context.get("viewer_index", 1)
         progress_callback = context.get("progress_callback")
-        reference_images = context.get("reference_images", {})
+        raw_reference_images = _first_present(context, _REFERENCE_MAP_KEYS) or {}
+        reference_images = _normalize_reference_images(raw_reference_images, context)
         if model.lower() == "wan-3.0":
             aspect_ratio = _normalize_meaicc_aspect_ratio(aspect_ratio)
         _log(f"  [context] available keys: {sorted(str(key) for key in context.keys())}")
         
-        _log(f"  [鍙傛暟] 瀹夸富 duration: {host_params.get('duration')}")
-        _log(f"  [鍙傛暟] 纾佺洏 duration: {disk_params.get('duration')}")
-        _log(f"  [鍙傛暟] 鏈€缁?duration: {duration}")
-        _log(f"  [鍙傚浘] 鍙傚浘妯″紡: {reference_mode}")
-        _log(f"  [鍙傚浘] 鍘熷鍙傚浘鏁版嵁: {reference_images}")
-        _log(f"  [鍙傚浘] first_frame_path: {context.get('first_frame_path')}")
-        _log(f"  [鍙傚浘] end_frame_path: {context.get('end_frame_path')}")
+        _log(f"  [参数] 宿主 duration: {host_params.get('duration')}")
+        _log(f"  [参数] 磁盘 duration: {disk_params.get('duration')}")
+        _log(f"  [参数] 最终 duration: {duration}")
+        _log(f"  [参图] 参图模式: {reference_mode}")
+        _log(f"  [参图] 原始参图数据: {reference_images}")
+        _log(f"  [参图] first_frame_path: {context.get('first_frame_path')}")
+        _log(f"  [参图] end_frame_path: {context.get('end_frame_path')}")
         
-        # 鏍囧噯鍖?reference_images
-        if reference_images and "鍙傝€冨浘鐗嘙AP" not in reference_images:
-            if all(isinstance(k, int) or (isinstance(k, str) and k.isdigit()) for k in reference_images.keys()):
-                reference_images = {"鍙傝€冨浘鐗嘙AP": reference_images.copy()}
-        ref_map = reference_images.get("鍙傝€冨浘鐗嘙AP")
-        if isinstance(ref_map, dict):
-            reference_images["鍙傝€冨浘鐗嘙AP"] = {
-                (int(k) if isinstance(k, str) and k.isdigit() else k): v
-                for k, v in ref_map.items()
-            }
-        if context.get("first_frame_path"):
-            reference_images["棣栧抚"] = context["first_frame_path"]
-        if context.get("end_frame_path"):
-            reference_images["灏惧抚"] = context["end_frame_path"]
-        
-        _log(f"  [鍙傚浘] 鏍囧噯鍖栧悗: {reference_images}")
-        _log(f"  [鍙傚浘] 鍙傝€冨浘鐗嘙AP: {reference_images.get('鍙傝€冨浘鐗嘙AP', {})}")
-        _log(f"  [鍙傚浘] 棣栧抚: {reference_images.get('棣栧抚')}")
-        _log(f"  [鍙傚浘] 灏惧抚: {reference_images.get('灏惧抚')}")
+        _log(f"  [参图] 标准化后: {reference_images}")
+        _log(f"  [参图] 参考图片MAP: {reference_images.get('参考图片MAP', {})}")
+        _log(f"  [参图] 首帧: {reference_images.get('首帧')}")
+        _log(f"  [参图] 尾帧: {reference_images.get('尾帧')}")
         
         width, height = _ratio_to_size(aspect_ratio)
         
         _log(f"  Base URL: {base_url}")
-        _log(f"  妯″瀷: {model}")
-        _log(f"  API Key 鍓嶇紑: {api_key[:8]}... (闀垮害 {len(api_key)})")
-        _log(f"  灏哄: {width}x{height} ({aspect_ratio})")
-        _log(f"  鍒嗚鲸鐜? {resolution}")
-        _log(f"  鏃堕暱: {duration}s")
-        _log(f"  甯х巼: {fps}fps")
-        _log(f"  鎻愮ず璇? {prompt[:100]}...")
+        _log(f"  模型: {model}")
+        _log(f"  API Key ǰ׺: {api_key[:8]}... (长度 {len(api_key)})")
+        _log(f"  尺寸: {width}x{height} ({aspect_ratio})")
+        _log(f"  分辨率: {resolution}")
+        _log(f"  时长: {duration}s")
+        _log(f"  帧率: {fps}fps")
+        _log(f"  提示词: {prompt[:100]}...")
         _log("=" * 80)
 
         
@@ -1086,30 +1170,34 @@ def generate(context):
         if not prompt:
             raise Exception("PLUGIN_ERROR:::Prompt is empty")
         
-        # ===== 1. 鎻愪氦瑙嗛鐢熸垚浠诲姟 =====
+        # ===== 1. 提交视频生成任务 =====
         is_schat_fast_9ref = _is_schat_sd20_fast_9ref_model(model)
         is_seedream = _is_seedream_model(model) and not is_schat_fast_9ref
         is_chre_seedance = _is_chre_seedance_model(model)
         endpoint = f"{base_url}/v1/video/generations" if is_seedream else f"{base_url}/v1/videos"
         image_urls = []
         
-        # duration 闄愬埗锛氭寜妯″瀷鍖哄垎
+        # duration 限制：按模型区分
         # grok-imagine-video-1.5 / preview: supports up to 15 seconds
-        # grok-imagine-1.0-video / grok-imagine-video-1.5-fast: 鍙敮鎸?6 鎴?10
+        # Other Grok models support only 6 or 10 seconds.
         if is_schat_fast_9ref:
             if duration != 15:
-                _log(f"  [SChat SD2.0 Fast 9鍥惧弬] 鏃堕暱鍥哄畾涓?15 绉掞紝宸茶嚜鍔ㄨ皟鏁? {duration} -> 15")
+                _log(f"  [SChat SD2.0 Fast 9图参] 时长固定为 15 秒，已自动调整: {duration} -> 15")
             duration = 15
+        elif _is_fixed_sd25_model(model):
+            if duration != 30:
+                _log(f"  [sd2.5] 时长固定为 30 秒，已自动调整: {duration} -> 30")
+            duration = 30
         elif is_seedream:
             duration = _normalize_seedream_duration(model, duration)
             aspect_ratio = _normalize_seedream_aspect_ratio(aspect_ratio)
-            _log("  [Seedream] 宸茶瘑鍒负 Seedream.20/sudashui 妯″瀷锛屼娇鐢?/v1/video/generations")
+            _log("  [Seedream] 使用 /v1/video/generations")
         elif is_chre_seedance:
             if duration < 5:
-                _log("  [CHRE Seedance] 鏃堕暱灏忎簬 5 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 5")
+                _log("  [CHRE Seedance] 时长小于 5 秒，已自动调整为 5")
                 duration = 5
             elif duration > 15:
-                _log("  [CHRE Seedance] 鏃堕暱澶т簬 15 绉掞紝宸茶嚜鍔ㄨ皟鏁翠负 15")
+                _log("  [CHRE Seedance] 时长大于 15 秒，已自动调整为 15")
                 duration = 15
         elif "1.5-preview" in model:
             if duration < 1:
@@ -1124,10 +1212,10 @@ def generate(context):
         payload = {
             "model": model,
             "prompt": prompt,
-            "seconds": str(duration),          # Grok 鏂囨。鏀寔瀛楃涓叉垨 number
+            "seconds": str(duration),          # Grok 文档支持字符串或 number
             "duration": duration,
             "size": _ratio_to_video_size(aspect_ratio, resolution),
-            "aspect_ratio": aspect_ratio,        # 鐩存帴浼犳瘮渚嬪瓧绗︿覆
+            "aspect_ratio": aspect_ratio,        # 直接传比例字符串
             "resolution": resolution,            # 480p / 720p / 1080p
         }
         if is_schat_fast_9ref:
@@ -1148,7 +1236,7 @@ def generate(context):
             if compliance_enabled:
                 payload["compliance_enabled"] = True
                 payload["compliance_mode"] = compliance_mode
-                _log(f"  [CHRE Seedance] 宸插紑鍚繃鐪熶汉/鍚堣绱犳潗: {compliance_mode}")
+                _log(f"  [CHRE Seedance] 已开启过真人/合规素材: {compliance_mode}")
         if is_seedream:
             seedream_meta = {
                 "aspectRatio": aspect_ratio,
@@ -1161,13 +1249,13 @@ def generate(context):
                 "metadata": {"payload": json.dumps(seedream_meta, ensure_ascii=False)},
             }
 
-        # 澶勭悊鍙傝€冨浘鐗囷細鍏堜笂浼犲埌鍥惧簥鑾峰彇鍏綉 URL锛屽啀浼犵粰 Grok
+        # 处理参考图片：先上传到图床获取公网 URL，再传给 Grok
         image_host_url = str(plugin_params.get("image_host_url", "")).strip()
         image_host_token = str(plugin_params.get("image_host_token", "")).strip()
         image_host_timeout = int(plugin_params.get("image_host_timeout", 60) or 60)
         if not image_host_url or "img-worker.v888.art" in image_host_url:
             image_host_url = _DEFAULT_PARAMS["image_host_url"]
-            _log(f"  [鍥惧簥] 宸蹭娇鐢ㄩ粯璁よ崯鑱氬浘搴? {image_host_url}")
+            _log(f"  [图床] 使用默认荟聚图床: {image_host_url}")
         if not image_host_token or image_host_token == "huiju123456":
             image_host_token = _DEFAULT_PARAMS["image_host_token"]
 
@@ -1175,14 +1263,19 @@ def generate(context):
         collect_mode = "multi_image" if is_schat_fast_9ref else reference_mode
         if is_schat_fast_9ref and reference_mode != "multi_image":
             _log("  [SChat SD2.0 Fast 9ref] switched to multi-image reference mode")
-        ref_paths = _collect_reference_images(reference_images, collect_mode)
-        _log(f"  [鍙傚浘] 鏈€缁堟敹闆嗗埌鍙傝€冨浘璺緞: {ref_paths}")
+        ref_paths = _collect_reference_images(reference_images, collect_mode, project_path)
+        _log(f"  [参图] 最终收集到参考图路径: {ref_paths}")
+        if not ref_paths and _prompt_requires_reference(prompt):
+            raise Exception(
+                "PLUGIN_ERROR:::提示词引用了参考图或首尾帧，但插件没有收到可用图片。"
+                "请检查图片节点连线和本地文件后重试"
+            )
         multipart_ref_paths = []
         if ref_paths and is_schat_fast_9ref:
             multipart_ref_paths = [p for p in ref_paths if p and os.path.isfile(p)][:9]
             if len(ref_paths) > 9:
-                _log(f"  [SChat SD2.0 Fast 9鍥惧弬] 鏈€澶氭敮鎸?9 寮犲弬鑰冨浘锛屽凡鎴柇: {len(ref_paths)} -> 9")
-            _log(f"  [SChat SD2.0 Fast 9鍥惧弬] 灏嗙洿鎺?multipart 涓婁紶 {len(multipart_ref_paths)} 寮?input_reference")
+                _log(f"  [SChat SD2.0 Fast 9图参] 最多支持 9 张参考图，已截断: {len(ref_paths)} -> 9")
+            _log(f"  [SChat SD2.0 Fast 9图参] multipart 上传 {len(multipart_ref_paths)} 张 input_reference")
         elif ref_paths:
             if not image_host_url:
                 raise Exception("PLUGIN_ERROR:::Image host URL is not configured")
@@ -1191,9 +1284,13 @@ def generate(context):
             if is_xingqi_mini and len(ref_paths) > 7:
                 _log(f"  [xingqi-mini] supports up to 7 reference images, truncate {len(ref_paths)} -> 7")
                 ref_paths = ref_paths[:7]
-            if is_chre_seedance and len(ref_paths) > 9:
-                _log(f"  [CHRE Seedance] image_refs 鏈€澶?9 寮狅紝宸叉埅鏂? {len(ref_paths)} -> 9")
-                ref_paths = ref_paths[:9]
+            chre_image_limit = 10 if _is_fixed_sd25_model(model) else 9
+            if is_chre_seedance and len(ref_paths) > chre_image_limit:
+                _log(
+                    f"  [CHRE Seedance] 参考图最多 {chre_image_limit} 张，"
+                    f"已截断: {len(ref_paths)} -> {chre_image_limit}"
+                )
+                ref_paths = ref_paths[:chre_image_limit]
 
             # 1.5-preview supports one reference image.
             if "1.5-preview" in model and len(ref_paths) > 1:
@@ -1212,16 +1309,18 @@ def generate(context):
             if not image_urls:
                 raise Exception("PLUGIN_ERROR:::所有参考图上传失败")
 
-            _log(f"  [鍙傚浘] 鎴愬姛涓婁紶 {len(image_urls)} 寮犲浘鐗囧埌鍥惧簥")
+            _log(f"  [参图] 成功上传 {len(image_urls)} 张图片到图床")
 
             if is_chre_seedance:
-                payload["image_refs"] = image_urls
-                if image_urls and "@Image1" not in prompt:
+                _attach_reference_image_fields(payload, image_urls, include_image_refs=True)
+                # sd2.5 uses image_references upstream and does not require
+                # prompt placeholders. Keep the user's prompt unchanged.
+                if image_urls and not _is_fixed_sd25_model(model) and "@Image1" not in prompt:
                     placeholders = " ".join([f"@Image{i+1}" for i in range(len(image_urls))])
                     prompt = f"{placeholders} {prompt}"
                     payload["prompt"] = prompt
-                    _log(f"  [CHRE Seedance] 鑷姩娣诲姞鍥剧墖寮曠敤鍒?prompt: {placeholders}")
-                _log(f"  [CHRE Seedance] 浣跨敤 image_refs 浼犻€?{len(image_urls)} 寮犲弬鑰冨浘")
+                    _log(f"  [CHRE Seedance] 已在提示词中加入图片引用: {placeholders}")
+                _log(f"  [CHRE Seedance] 使用 image_refs 传递 {len(image_urls)} 张参考图")
             elif is_seedream:
                 seedream_meta = {
                     "aspectRatio": aspect_ratio,
@@ -1233,18 +1332,16 @@ def generate(context):
                     placeholders = " ".join([f"@image{i+1}" for i in range(len(image_urls))])
                     prompt = f"{placeholders} {prompt}"
                     payload["prompt"] = prompt
-                    _log(f"  [Seedream] 鑷姩娣诲姞鍥剧墖寮曠敤鍒?prompt: {placeholders}")
-                _log("  [Seedream] 浣跨敤 metadata.payload.imageUrls 浼犻€?URL")
+                    _log(f"  [Seedream] 已在提示词中加入图片引用: {placeholders}")
+                _log("  [Seedream] 使用 metadata.payload.imageUrls 传递 URL")
             else:
-                payload["reference_images"] = image_urls
+                _attach_reference_image_fields(payload, image_urls)
                 if is_xingqi_mini:
                     _log(f"  [xingqi-mini] 使用上游文档字段 reference_images 传递 {len(image_urls)} 张参考图")
                 else:
-                    payload["images"] = image_urls
-                    payload["image_urls"] = image_urls
                     _log(f"  [参图] 使用 reference_images/images/image_urls 字段传递 URL")
 
-                # 澶氬浘鏃惰嚜鍔ㄨˉ鍏ㄥ崰浣嶇
+                # 多图时自动补全占位符
                 if len(image_urls) > 1:
                     if is_xingqi_mini:
                         has_placeholder = any(f"[@image{i}]" in prompt or f"@image{i}" in prompt for i in range(1, len(image_urls)+1))
@@ -1254,7 +1351,7 @@ def generate(context):
                         placeholders = " ".join([f"[@image{i+1}]" for i in range(len(image_urls))]) if is_xingqi_mini else ", ".join([f"<IMAGE_{i+1}>" for i in range(len(image_urls))])
                         prompt = f"{placeholders} reference images. {prompt}"
                         payload["prompt"] = prompt
-                        _log(f"  [鍙傚浘] 鑷姩娣诲姞鍗犱綅绗﹀埌 prompt: {placeholders}")
+                        _log(f"  [参图] 自动添加占位符到 prompt: {placeholders}")
         else:
             _log("  [reference] no reference images, text-to-video mode")
 
@@ -1310,19 +1407,19 @@ def generate(context):
         if progress_callback:
             progress_callback("提交任务中...")
         
-        # 璁＄畻璇锋眰浣撳ぇ灏忕敤浜庤瘖鏂?
+        # Calculate request size for diagnostics.
         try:
             payload_json = json.dumps(payload, ensure_ascii=False)
             req_size_kb = len(payload_json.encode('utf-8')) / 1024
-            _log(f"  [NewAPI] 璇锋眰浣撳ぇ灏? {req_size_kb:.2f} KB")
+            _log(f"  [NewAPI] 请求体大小: {req_size_kb:.2f} KB")
             _log(f"  [NewAPI] final request JSON: {payload_json}")
         except Exception:
             pass
         
-        _log(f"  鎻愪氦浠诲姟: POST {endpoint}")
-        _log(f"  [NewAPI] 璇锋眰 Headers: Authorization=Bearer {api_key[:8]}...")
+        _log(f"  提交任务: POST {endpoint}")
+        _log(f"  [NewAPI] 请求 Headers: Authorization=Bearer {api_key[:8]}...")
         
-        _log(f"  [NewAPI] 鎻愪氦璇锋眰浣撴憳瑕?")
+        _log("  [NewAPI] 提交请求摘要")
         _log(f"    model: {payload.get('model')}")
         _log(f"    seconds: {payload.get('seconds')}")
         _log(f"    duration: {payload.get('duration')}")
@@ -1362,18 +1459,18 @@ def generate(context):
             resp = requests.post(endpoint, headers=headers, json=payload, timeout=300,
                                  proxies={"http": None, "https": None})
         
-        _log(f"  [NewAPI] 鎻愪氦鍝嶅簲鐘舵€? {resp.status_code}")
+        _log(f"  [NewAPI] 提交响应状态: {resp.status_code}")
         if resp.status_code != 200:
             try:
                 err = resp.json()
-                _log(f"  [NewAPI] 鎻愪氦閿欒璇︽儏: {err}")
+                _log(f"  [NewAPI] 提交错误详情: {err}")
             except Exception:
-                _log(f"  [NewAPI] 鎻愪氦閿欒鏂囨湰: {resp.text[:500]}")
+                _log(f"  [NewAPI] 提交错误文本: {resp.text[:500]}")
             try:
                 err = resp.json()
             except Exception:
                 err = resp.text[:500]
-            # 閽堝 403 杈撳嚭棰濆璇婃柇淇℃伅
+            # 针对 403 输出额外诊断信息
             if resp.status_code == 403:
                 _log("  [diagnostic] 403 permission denied")
                 _log(f"  [diagnostic] model: {model}")
@@ -1383,15 +1480,15 @@ def generate(context):
             raise Exception(f"PLUGIN_ERROR:::API 错误 {resp.status_code}: {err}")
         
         result = resp.json()
-        _log(f"  鎻愪氦鍝嶅簲: {json.dumps(result, ensure_ascii=False)[:500]}")
+        _log(f"  提交响应: {json.dumps(result, ensure_ascii=False)[:500]}")
         
         task_id = result.get("task_id") or result.get("id")
         if not task_id:
             raise Exception(f"PLUGIN_ERROR:::API 响应中缺少任务 ID: {result}")
         
-        _log(f"  浠诲姟 ID: {task_id}")
+        _log(f"  任务 ID: {task_id}")
         
-        # ===== 2. 杞浠诲姟鐘舵€?=====
+        # Poll task status.
         if progress_callback:
             progress_callback("生成中...", 0)
         
@@ -1410,14 +1507,14 @@ def generate(context):
                 )
             except Exception as e:
                 error_count += 1
-                _log(f"  杞寮傚父 ({error_count}/{max_errors}): {e}")
+                _log(f"  轮询异常 ({error_count}/{max_errors}): {e}")
                 if error_count >= max_errors:
                     raise Exception(f"PLUGIN_ERROR:::Polling failed {max_errors} times")
                 continue
             
             if status_resp.status_code != 200:
                 error_count += 1
-                _log(f"  鐘舵€佹煡璇㈠け璐?({error_count}/{max_errors}): {status_resp.status_code}")
+                _log(f"  状态查询失败 ({error_count}/{max_errors}): {status_resp.status_code}")
                 if error_count >= max_errors:
                     raise Exception(f"PLUGIN_ERROR:::Status query failed {max_errors} times")
                 continue
@@ -1436,8 +1533,8 @@ def generate(context):
                 )
                 progress_pct = status_data.get("progress")
             
-            _log(f"  [{attempt+1}/{max_poll}] 鐘舵€? {status}, 杩涘害: {progress_pct}")
-            _log(f"  [NewAPI] 鐘舵€佸搷搴旀憳瑕? {json.dumps(status_data, ensure_ascii=False)[:300]}")
+            _log(f"  [{attempt+1}/{max_poll}] 状态: {status}, 进度: {progress_pct}")
+            _log(f"  [NewAPI] 状态响应摘要: {json.dumps(status_data, ensure_ascii=False)[:300]}")
             status_key = str(status or "").strip().lower()
             if status_key in ("done", "complete", "success", "succeeded", "finished"):
                 status_key = "completed"
@@ -1460,11 +1557,11 @@ def generate(context):
             
             if is_seedream and status_key in ("success", "completed", "succeeded"):
                 video_url = _seedream_result_url(status_data)
-                _log(f"  [Seedream] 瑙嗛鐢熸垚瀹屾垚: {video_url}")
+                _log(f"  [Seedream] 视频生成完成: {video_url}")
                 break
 
             if status_key == "completed":
-                # 浼樺厛浠?output 瀛楁鑾峰彇
+                # Prefer the nested output URL when available.
                 output = status_data.get("output")
                 if isinstance(output, dict):
                     video_url = output.get("url")
@@ -1473,16 +1570,12 @@ def generate(context):
                 if not video_url and is_schat_fast_9ref:
                     video_url = f"{base_url}/v1/videos/{task_id}/content"
                 
-                _log(f"  瑙嗛鐢熸垚瀹屾垚: {video_url}")
+                _log(f"  视频生成完成: {video_url}")
                 break
             
             elif status_key == "failed":
-                error_info = status_data.get("error", {})
-                if isinstance(error_info, dict):
-                    fail_msg = error_info.get("message", "未知错误")
-                else:
-                    fail_msg = str(error_info) if error_info else "任务失败"
-                raise Exception(f"PLUGIN_ERROR:::视频生成失败: {fail_msg}")
+                fail_msg = _task_failure_reason(status_data)
+                raise Exception(f"PLUGIN_ERROR:::视频生成失败: {fail_msg}（任务 ID: {task_id}）")
             elif is_seedream and status_key in ("failure", "cancelled", "canceled"):
                 raise Exception(f"PLUGIN_ERROR:::视频生成失败: {_seedream_failure_reason(status_data)}")
         else:
@@ -1491,7 +1584,7 @@ def generate(context):
         if not video_url:
             raise Exception("PLUGIN_ERROR:::任务完成但未获取到视频 URL")
         
-        # ===== 3. 涓嬭浇瑙嗛 =====
+        # ===== 3. 下载视频 =====
         if progress_callback:
             progress_callback("下载中...", 99)
         
@@ -1502,7 +1595,7 @@ def generate(context):
         
         download_success = False
         
-        # 鏂瑰紡1: 鐩存帴涓嬭浇 URL
+        # 方式1: 直接下载 URL
         dl_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "*/*",
@@ -1510,7 +1603,7 @@ def generate(context):
         if str(video_url).startswith(base_url):
             dl_headers["Authorization"] = f"Bearer {api_key}"
         try:
-            _log(f"  涓嬭浇瑙嗛: {video_url}")
+            _log(f"  下载视频: {video_url}")
             dl_resp = requests.get(video_url, headers=dl_headers, timeout=1800, stream=True)
             if dl_resp.status_code == 200:
                 total = 0
@@ -1519,16 +1612,16 @@ def generate(context):
                         if chunk:
                             f.write(chunk)
                             total += len(chunk)
-                _log(f"  涓嬭浇瀹屾垚: {video_path} ({total / (1024*1024):.2f} MB)")
+                _log(f"  下载完成: {video_path} ({total / (1024*1024):.2f} MB)")
                 download_success = True
         except Exception as e:
-            _log(f"  URL 涓嬭浇澶辫触: {e}")
+            _log(f"  URL 下载失败: {e}")
         
-        # 鏂瑰紡2: 閫氳繃 content API
+        # 方式2: 通过 content API
         if not download_success:
             try:
                 content_endpoint = f"{base_url}/v1/videos/{task_id}/content"
-                _log(f"  澶囩敤涓嬭浇: {content_endpoint}")
+                _log(f"  备用下载: {content_endpoint}")
                 dl_resp = requests.get(content_endpoint, headers=headers, timeout=1800, stream=True,
                                       proxies={"http": None, "https": None})
                 if dl_resp.status_code == 200:
@@ -1538,10 +1631,10 @@ def generate(context):
                             if chunk:
                                 f.write(chunk)
                                 total += len(chunk)
-                    _log(f"  澶囩敤涓嬭浇瀹屾垚: {video_path} ({total / (1024*1024):.2f} MB)")
+                    _log(f"  备用下载完成: {video_path} ({total / (1024*1024):.2f} MB)")
                     download_success = True
             except Exception as e:
-                _log(f"  澶囩敤涓嬭浇澶辫触: {e}")
+                _log(f"  备用下载失败: {e}")
         
         if not download_success:
             raise Exception("PLUGIN_ERROR:::视频下载失败，请检查网络或稍后重试")
@@ -1549,25 +1642,25 @@ def generate(context):
         if progress_callback:
             progress_callback("完成", 100)
         
-        _log(f"[NewAPI Video] 鐢熸垚瀹屾垚: {video_path}")
+        _log(f"[NewAPI Video] 生成完成: {video_path}")
         _log("=" * 80)
         return [video_path]
     
     except Exception as e:
         error_msg = str(e)
-        _log(f"[NewAPI Video] 鐢熸垚鍑洪敊: {error_msg}")
+        _log(f"[NewAPI Video] 生成出错: {error_msg}")
         if error_msg.startswith("PLUGIN_ERROR:::"):
             raise
         traceback.print_exc()
         raise Exception(f"PLUGIN_ERROR:::{error_msg}")
 
 
-# ===================== 鎻掍欢鎺ュ彛 =====================
+# ===================== 插件接口 =====================
 
 def get_info():
     """Return plugin info."""
     return {
-        "name": "NewAPI OpenAI 瑙嗛鎻掍欢",
+        "name": "NewAPI OpenAI 视频插件",
         "description": (
             "OpenAI-compatible video plugin for NewAPI.\n"
             "Supports custom Base URL, API key, and /v1/models model list.\n"
@@ -1596,9 +1689,9 @@ def handle_action(action, data=None):
         timeout = int(data.get("timeout", 15))
         
         if not base_url:
-            return {"ok": False, "error": "Base URL 涓嶈兘涓虹┖"}
+            return {"ok": False, "error": "Base URL 不能为空"}
         
-        _log(f"[NewAPI Video] 姝ｅ湪浠?{base_url}/v1/models 鑾峰彇妯″瀷鍒楄〃...")
+        _log(f"[NewAPI Video] 正在从 {base_url}/v1/models 获取模型列表...")
         result = _fetch_models_from_api(base_url, api_key, timeout)
         
         if result.get("ok"):
@@ -1606,16 +1699,16 @@ def handle_action(action, data=None):
             default_model = result.get("default_model", models[0] if models else "")
             _log(f"[NewAPI Video] fetched {len(models)} models")
             
-            # 淇濆瓨鍒?config.json
+            # Save the refreshed list to config.json.
             try:
                 update_plugin_params(_PLUGIN_FILE, {
                     "model_list": json.dumps(models, ensure_ascii=False),
                     "model_list_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "model_list_default": default_model,
                 })
-                _log(f"[NewAPI Video] 妯″瀷鍒楄〃宸蹭繚瀛樺埌閰嶇疆")
+                _log(f"[NewAPI Video] 模型列表已保存到配置")
             except Exception as save_err:
-                _log(f"[NewAPI Video] 淇濆瓨妯″瀷鍒楄〃澶辫触: {save_err}")
+                _log(f"[NewAPI Video] 保存模型列表失败: {save_err}")
             
             return {
                 "ok": True,
@@ -1623,8 +1716,8 @@ def handle_action(action, data=None):
                 "default_model": default_model,
             }
         else:
-            _log(f"[NewAPI Video] 鑾峰彇妯″瀷鍒楄〃澶辫触: {result.get('error')}")
-            return {"ok": False, "error": result.get("error", "鏈煡閿欒")}
+            _log(f"[NewAPI Video] 获取模型列表失败: {result.get('error')}")
+            return {"ok": False, "error": result.get("error", "未知错误")}
     
     elif action == "check_update":
         result = _get_latest_release(_UPDATE_REPO, int(data.get("timeout", 20) or 20))
@@ -1637,10 +1730,10 @@ def handle_action(action, data=None):
         return _apply_github_update(_UPDATE_REPO, asset_name)
 
     else:
-        return {"ok": False, "error": f"鏈煡鍔ㄤ綔: {action}"}
+        return {"ok": False, "error": f"未知动作: {action}"}
 
 
-# ===================== 瀹炴椂鏃ュ織宸ュ叿 =====================
+# ===================== 实时日志工具 =====================
 
 def _log_progress(callback, msg, percent=None):
     """Log to file and send progress callback."""
@@ -1650,5 +1743,3 @@ def _log_progress(callback, msg, percent=None):
             callback(msg, int(percent))
         else:
             callback(msg)
-
-
